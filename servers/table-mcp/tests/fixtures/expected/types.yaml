@@ -1,0 +1,34 @@
+# Human-authored Delta → Iceberg type-mapping oracle for table-mcp unit tests.
+#
+# WHO FILLS THIS IN
+#   The lead architect (spec owner), reviewed by the senior engineer (WS-B) and
+#   the security lead, in a normal reviewed PR. Not Claude Code, and not any
+#   code-generation step.
+#
+# WHY IT IS HUMAN-AUTHORED
+#   Root CLAUDE.md rule 5 and SPEC §11: golden fixtures are never generated from
+#   the code under test. The expected mappings are transcribed by a person from
+#   the exhaustive type table in SPEC §5 so that `types.py` is tested against
+#   the spec rather than against its own output (Gate 0 #9).
+#
+# WHAT GOES IN IT
+#   One entry per row of the SPEC §5 type table, keyed by the test it drives
+#   (`test_type_map_<delta_type>`), covering every Delta type including the ones
+#   with no v1 mapping — INTERVAL, VARIANT and VOID/NULL all route to rule S7.
+#   Where the spec records a side effect, state it: BYTE/SHORT widen to `int`
+#   (`type_widened`), CHAR(n)/VARCHAR(n) drop their length constraint,
+#   TIMESTAMP maps to `timestamptz` by default and to `timestamp` under
+#   `options.timestamp_mode = "ntz_utc"`.
+#
+#   Suggested shape (delete this block when the first real entry lands):
+#
+#   test_type_map_BYTE:
+#     spec_ref: "§5 type table, row BYTE/SHORT/INT"
+#     delta_type: BYTE
+#     expect:
+#       iceberg_type: int
+#       type_widened: true
+#       length_constraint_dropped: false
+#
+# STATUS: empty. Type-mapping unit tests stay skipped until the first entry is
+# committed. Do not populate it from table-mcp output.

@@ -1,0 +1,36 @@
+# Human-authored strategy oracle for table-mcp unit tests.
+#
+# WHO FILLS THIS IN
+#   The lead architect (spec owner), reviewed by the senior engineer (WS-B) and
+#   the security lead, in a normal reviewed PR. Not Claude Code, and not any
+#   code-generation step.
+#
+# WHY IT IS HUMAN-AUTHORED
+#   Root CLAUDE.md rule 5 and SPEC §11: golden fixtures are never generated from
+#   the code under test. Expected *strategy* decisions are read off the SPEC §5
+#   matrix by a person, so the tests check the implementation against the spec
+#   rather than against itself. SPEC §11 / Gate 0 #9 make this explicit: the
+#   strategy and type oracles are human-authored YAML, unlike the row counts and
+#   checksum vectors in expected/<fixture>.json, which `fsi-fixtures
+#   snapshot-golden` records once from the live sandbox estate.
+#
+# WHAT GOES IN IT
+#   One entry per fixture table and per decision-order boundary in SPEC §5,
+#   keyed by the test name it drives (`test_strategy_rule_<id>`,
+#   `test_strategy_rule_S3_deletion_vectors`, `test_strategy_order_S6_beats_S1`,
+#   …). Each entry states the expected strategy, the matching rule id and every
+#   expected warning code, with the SPEC §5 row it comes from.
+#
+#   Suggested shape (delete this block when the first real entry lands):
+#
+#   test_strategy_rule_S1:
+#     spec_ref: "§5 row S1"
+#     profile: trades_plain          # fixture name or an inline profile
+#     options: {}
+#     expect:
+#       strategy: S1
+#       rule_id: S1
+#       warnings: []
+#
+# STATUS: empty. Strategy unit tests stay skipped until the first entry is
+# committed. Do not populate it from table-mcp output.

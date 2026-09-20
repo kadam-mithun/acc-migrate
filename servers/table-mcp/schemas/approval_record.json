@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "ApprovalDecision": {
+      "description": "`decision` on the approval record (SPEC \u00a79.1).",
+      "enum": [
+        "APPROVE",
+        "REJECT"
+      ],
+      "title": "ApprovalDecision",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Promotion approval, shared with `gov-mcp`, `aws-mcp` and the Console.\n\nSPEC \u00a79.1 is normative: `promote_table` succeeds only if the ledger holds a\nrecord with **all** of these fields, `decision = APPROVE`, `table_ref` equal,\n`plan_id` equal to the plan that staged the table, and `recon_record_id`\nreferencing a `recon-mcp` record with `status = PASS` for the same table and\nstaged snapshot id. Any mismatch \u2192 `APPROVAL_INVALID`; a missing or unknown\n`approval_id` \u2192 `APPROVAL_REQUIRED`.\n\nThe JSON Schema rendering of this model is committed as\n`schemas/approval_record.json` and is the cross-service contract.",
+  "properties": {
+    "schema_version": {
+      "default": "0.3.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "approval_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "table_ref": {
+      "pattern": "^[^.\\s]+\\.[^.\\s]+\\.[^.\\s]+$",
+      "title": "Table Ref",
+      "type": "string"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "recon_record_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Recon Record Id",
+      "type": "string"
+    },
+    "approver": {
+      "description": "Console SSO identity or CLI IAM identity (SPEC \u00a79.1)",
+      "minLength": 1,
+      "title": "Approver",
+      "type": "string"
+    },
+    "approved_at": {
+      "format": "date-time",
+      "title": "Approved At",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/ApprovalDecision"
+    }
+  },
+  "required": [
+    "approval_id",
+    "table_ref",
+    "plan_id",
+    "recon_record_id",
+    "approver",
+    "approved_at",
+    "decision"
+  ],
+  "title": "ApprovalRecord",
+  "type": "object"
+}

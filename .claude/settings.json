@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv *)", "Bash(ruff *)", "Bash(mypy *)", "Bash(pytest *)",
+      "Bash(git status)", "Bash(git diff *)", "Bash(git log *)", "Bash(git add *)", "Bash(git commit *)",
+      "Bash(terraform fmt *)", "Bash(terraform validate *)", "Bash(checkov *)", "Bash(bandit *)"
+    ],
+    "deny": [
+      "Bash(terraform apply *)", "Bash(terraform destroy *)",
+      "Bash(aws s3 rm *)", "Bash(aws iam *)", "Bash(aws kms *)",
+      "Bash(databricks *)", "Bash(curl *)", "Bash(wget *)",
+      "Read(**/.env)", "Read(**/*.pem)", "Read(**/secrets/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/block-secrets.sh"}]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/lint-changed.sh"}]
+      }
+    ]
+  }
+}

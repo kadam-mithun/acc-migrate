@@ -1,0 +1,1437 @@
+{
+  "$defs": {
+    "ActualCost": {
+      "additionalProperties": false,
+      "description": "Recorded actuals for the learning loop (SPEC \u00a712).",
+      "properties": {
+        "emr_vcpu_hours": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Emr Vcpu Hours",
+          "type": "number"
+        },
+        "duration_seconds": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Duration Seconds",
+          "type": "number"
+        },
+        "s3_get_requests": {
+          "default": 0,
+          "minimum": 0,
+          "title": "S3 Get Requests",
+          "type": "integer"
+        },
+        "s3_put_requests": {
+          "default": 0,
+          "minimum": 0,
+          "title": "S3 Put Requests",
+          "type": "integer"
+        },
+        "actual_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Usd"
+        }
+      },
+      "title": "ActualCost",
+      "type": "object"
+    },
+    "BridgeDetail": {
+      "additionalProperties": false,
+      "description": "UniForm read-only Glue bridge (SPEC \u00a75, S6; AT-22).",
+      "properties": {
+        "registered": {
+          "default": false,
+          "title": "Registered",
+          "type": "boolean"
+        },
+        "source_metadata_location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Metadata Location"
+        },
+        "glue_bridge_database": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glue Bridge Database"
+        },
+        "glue_bridge_table": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glue Bridge Table"
+        }
+      },
+      "title": "BridgeDetail",
+      "type": "object"
+    },
+    "CdfDetail": {
+      "additionalProperties": false,
+      "description": "Change Data Feed handling (SPEC \u00a75, S4).",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "consumers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Consumers",
+          "type": "array"
+        },
+        "changelog_table": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Changelog Table"
+        },
+        "window_days": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window Days"
+        },
+        "window_truncated": {
+          "default": false,
+          "title": "Window Truncated",
+          "type": "boolean"
+        }
+      },
+      "title": "CdfDetail",
+      "type": "object"
+    },
+    "ColumnAggregate": {
+      "additionalProperties": false,
+      "description": "Aggregate for one column.\n\n**Data values.** Permitted only inside :class:`ConversionRecord`, which is\nwritten SSE-KMS encrypted to the client bucket. Never logged and never\nreturned by a tool (SPEC \u00a78, \u00a710).",
+      "properties": {
+        "column": {
+          "title": "Column",
+          "type": "string"
+        },
+        "aggregate": {
+          "description": "\"sum\" | \"count_distinct\" | \"min\" | \"max\"",
+          "title": "Aggregate",
+          "type": "string"
+        },
+        "source_value": {
+          "title": "Source Value",
+          "type": "string"
+        },
+        "target_value": {
+          "title": "Target Value",
+          "type": "string"
+        },
+        "matched": {
+          "title": "Matched",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "column",
+        "aggregate",
+        "source_value",
+        "target_value",
+        "matched"
+      ],
+      "title": "ColumnAggregate",
+      "type": "object"
+    },
+    "CostEstimate": {
+      "additionalProperties": false,
+      "description": "Estimated cost of a conversion (SPEC \u00a712).",
+      "properties": {
+        "emr_vcpu_hours": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Emr Vcpu Hours",
+          "type": "number"
+        },
+        "s3_get_requests": {
+          "default": 0,
+          "minimum": 0,
+          "title": "S3 Get Requests",
+          "type": "integer"
+        },
+        "s3_put_requests": {
+          "default": 0,
+          "minimum": 0,
+          "title": "S3 Put Requests",
+          "type": "integer"
+        },
+        "estimated_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Usd"
+        }
+      },
+      "title": "CostEstimate",
+      "type": "object"
+    },
+    "DeltaVersionEntry": {
+      "additionalProperties": false,
+      "description": "One entry of the Delta version ledger (SPEC \u00a76).",
+      "properties": {
+        "version": {
+          "minimum": 0,
+          "title": "Version",
+          "type": "integer"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "operation": {
+          "title": "Operation",
+          "type": "string"
+        },
+        "operationParameters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Operationparameters",
+          "type": "object"
+        },
+        "file_set_hash": {
+          "title": "File Set Hash",
+          "type": "string"
+        },
+        "recoverable": {
+          "default": true,
+          "description": "False once vacuumed (SPEC \u00a76)",
+          "title": "Recoverable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "version",
+        "timestamp",
+        "operation",
+        "file_set_hash"
+      ],
+      "title": "DeltaVersionEntry",
+      "type": "object"
+    },
+    "DltDetail": {
+      "additionalProperties": false,
+      "description": "DLT provenance carried to `jobs-mcp` (SPEC \u00a75, S5).",
+      "properties": {
+        "managed": {
+          "default": false,
+          "title": "Managed",
+          "type": "boolean"
+        },
+        "pipeline_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pipeline Id"
+        },
+        "pipeline_paused": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pipeline Paused"
+        },
+        "flagged_for_jobs_mcp": {
+          "default": false,
+          "title": "Flagged For Jobs Mcp",
+          "type": "boolean"
+        },
+        "expectations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Expectations",
+          "type": "object"
+        }
+      },
+      "title": "DltDetail",
+      "type": "object"
+    },
+    "EngineReadResult": {
+      "additionalProperties": false,
+      "description": "One engine's leg of `validate_reads` (SPEC \u00a78).",
+      "properties": {
+        "engine": {
+          "$ref": "#/$defs/ReadEngine"
+        },
+        "succeeded": {
+          "title": "Succeeded",
+          "type": "boolean"
+        },
+        "row_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Row Count"
+        },
+        "schema_fields": {
+          "items": {
+            "$ref": "#/$defs/EngineSchemaField"
+          },
+          "title": "Schema Fields",
+          "type": "array"
+        },
+        "redshift_read_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RedshiftReadPath"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded for the Redshift leg only (Gate 0 #3)"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "engine",
+        "succeeded"
+      ],
+      "title": "EngineReadResult",
+      "type": "object"
+    },
+    "EngineSchemaField": {
+      "additionalProperties": false,
+      "description": "One column as reported by a query engine.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type_name": {
+          "title": "Type Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type_name"
+      ],
+      "title": "EngineSchemaField",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "description": "`ErrorEnvelope.code` values.\n\nThe first block is named normatively by the spec; the second block is the\nscaffold's structured vocabulary for preconditions the spec requires to fail\n(SPEC \u00a74, \u00a79, \u00a710, AT-13 \u2026 AT-15).",
+      "enum": [
+        "ALREADY_PROMOTED",
+        "APPROVAL_REQUIRED",
+        "APPROVAL_INVALID",
+        "LOCKED",
+        "RECOVERY_BLOCKED",
+        "KMS_KEY_REQUIRED",
+        "WRITE_GRANT_PRESENT",
+        "PREFIX_OVERLAP",
+        "ACTIVE_WRITER",
+        "DLT_PIPELINE_ACTIVE",
+        "UNSUPPORTED_TABLE",
+        "PLAN_NOT_FOUND",
+        "TABLE_NOT_FOUND",
+        "RECORD_NOT_FOUND",
+        "VALIDATION_FAILED",
+        "ENGINE_DISAGREEMENT",
+        "INTERNAL"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ErrorEnvelope": {
+      "additionalProperties": false,
+      "description": "Structured error returned by every tool (SPEC \u00a73).\n\n`message` and `hint` are emitted through `redact.py`: they carry no quoted\nliterals, column values or partition values (SPEC \u00a710, AT-18).",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "table": {
+          "anyOf": [
+            {
+              "pattern": "^[^.\\s]+\\.[^.\\s]+\\.[^.\\s]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorEnvelope",
+      "type": "object"
+    },
+    "PartitionColumn": {
+      "additionalProperties": false,
+      "description": "A Delta partition column and the Iceberg transform it maps to.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "identity": {
+          "description": "False for generated/transformed partitions \u2192 S3 (SPEC \u00a75)",
+          "title": "Identity",
+          "type": "boolean"
+        },
+        "source_column": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Column"
+        },
+        "generated_expression": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated Expression"
+        },
+        "iceberg_transform": {
+          "anyOf": [
+            {
+              "pattern": "^(identity|void|year|month|day|hour|bucket\\[\\d+\\]|truncate\\[\\d+\\])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Iceberg transform name, e.g. \"year\" or \"bucket[16]\"",
+          "title": "Iceberg Transform"
+        }
+      },
+      "required": [
+        "name",
+        "identity"
+      ],
+      "title": "PartitionColumn",
+      "type": "object"
+    },
+    "ReadEngine": {
+      "description": "Engines `validate_reads` must agree across (SPEC \u00a78).",
+      "enum": [
+        "athena",
+        "redshift",
+        "emr_spark"
+      ],
+      "title": "ReadEngine",
+      "type": "string"
+    },
+    "RedshiftReadPath": {
+      "description": "Which Redshift path served the read (Gate 0 #3).",
+      "enum": [
+        "native_glue",
+        "spectrum"
+      ],
+      "title": "RedshiftReadPath",
+      "type": "string"
+    },
+    "RuleEvaluation": {
+      "additionalProperties": false,
+      "description": "One rule considered by `recommend_strategy`.\n\nSPEC \u00a75: \"rationale lists every rule evaluated\" \u2014 so both matches and\nnon-matches are recorded, in decision order.",
+      "properties": {
+        "rule_id": {
+          "$ref": "#/$defs/StrategyRuleId"
+        },
+        "matched": {
+          "title": "Matched",
+          "type": "boolean"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "matched",
+        "reason"
+      ],
+      "title": "RuleEvaluation",
+      "type": "object"
+    },
+    "SnapshotMapping": {
+      "additionalProperties": false,
+      "description": "Delta version \u2192 Iceberg snapshot, published for time travel (SPEC \u00a76).",
+      "properties": {
+        "delta_version": {
+          "minimum": 0,
+          "title": "Delta Version",
+          "type": "integer"
+        },
+        "iceberg_snapshot_id": {
+          "title": "Iceberg Snapshot Id",
+          "type": "integer"
+        },
+        "commit_timestamp": {
+          "format": "date-time",
+          "title": "Commit Timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "delta_version",
+        "iceberg_snapshot_id",
+        "commit_timestamp"
+      ],
+      "title": "SnapshotMapping",
+      "type": "object"
+    },
+    "Strategy": {
+      "description": "Conversion strategies of SPEC \u00a75.\n\nS7 (\"unsupported \u2014 manual\") is a *rule* id whose decision is ``MANUAL``; the\nspec states `StrategyDecision.strategy = MANUAL` for that row, so the rule id\nis carried separately in :attr:`StrategyDecision.rule_id`.",
+      "enum": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "MANUAL"
+      ],
+      "title": "Strategy",
+      "type": "string"
+    },
+    "StrategyDecision": {
+      "additionalProperties": false,
+      "description": "`StrategyDecision {strategy, rationale[], warnings[], estimated_duration,\nestimated_cost}` (SPEC \u00a73).",
+      "properties": {
+        "strategy": {
+          "$ref": "#/$defs/Strategy"
+        },
+        "rule_id": {
+          "$ref": "#/$defs/StrategyRuleId"
+        },
+        "rationale": {
+          "items": {
+            "$ref": "#/$defs/RuleEvaluation"
+          },
+          "title": "Rationale",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/StrategyWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "estimated_duration_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Duration Seconds"
+        },
+        "estimated_cost": {
+          "$ref": "#/$defs/CostEstimate"
+        },
+        "underlying_strategy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Strategy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S5 is a modifier: the strategy it wraps (SPEC \u00a75)"
+        },
+        "eventual_strategy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Strategy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "S6 records the strategy to apply at cut-over"
+        },
+        "manual_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required when strategy is MANUAL (rule S7)",
+          "title": "Manual Reason"
+        }
+      },
+      "required": [
+        "strategy",
+        "rule_id"
+      ],
+      "title": "StrategyDecision",
+      "type": "object"
+    },
+    "StrategyRuleId": {
+      "description": "Rule identifiers, in the decision order of SPEC \u00a75.",
+      "enum": [
+        "S6",
+        "S7",
+        "S5",
+        "S4",
+        "S3",
+        "S2",
+        "S1"
+      ],
+      "title": "StrategyRuleId",
+      "type": "string"
+    },
+    "StrategyWarning": {
+      "additionalProperties": false,
+      "description": "A named warning copied into the conversion record and client report.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/WarningCode"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "detail"
+      ],
+      "title": "StrategyWarning",
+      "type": "object"
+    },
+    "TableRef": {
+      "additionalProperties": false,
+      "description": "A Delta table in Unity Catalog.\n\nThe three identity fields are always present. The remaining fields are the\ndiscovery attributes of SPEC \u00a73 `discover_tables`; they are `None` when the\nref is passed to another tool purely as an identifier.",
+      "properties": {
+        "catalog": {
+          "pattern": "^[A-Za-z0-9_-]{1,255}$",
+          "title": "Catalog",
+          "type": "string"
+        },
+        "schema": {
+          "pattern": "^[A-Za-z0-9_-]{1,255}$",
+          "title": "Schema",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z0-9_-]{1,255}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source S3 URI of the Delta table",
+          "title": "Location"
+        },
+        "table_format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source format, e.g. \"DELTA\"",
+          "title": "Table Format"
+        },
+        "format_details": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Format Details",
+          "type": "object"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size Bytes"
+        },
+        "last_modified": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Modified"
+        },
+        "managed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "True = UC managed, False = external",
+          "title": "Managed"
+        },
+        "dlt_managed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dlt Managed"
+        }
+      },
+      "required": [
+        "catalog",
+        "schema",
+        "name"
+      ],
+      "title": "TableRef",
+      "type": "object"
+    },
+    "TableState": {
+      "description": "Run-manifest states (SPEC \u00a79).",
+      "enum": [
+        "PLANNED",
+        "RUNNING",
+        "STAGED",
+        "VALIDATED",
+        "PROMOTED",
+        "FAILED",
+        "ROLLED_BACK",
+        "FEDERATED",
+        "SKIPPED_S6",
+        "MANUAL"
+      ],
+      "title": "TableState",
+      "type": "string"
+    },
+    "TimestampMode": {
+      "description": "`options.timestamp_mode` (SPEC \u00a75, Gate 0 #18).",
+      "enum": [
+        "timestamptz",
+        "ntz_utc"
+      ],
+      "title": "TimestampMode",
+      "type": "string"
+    },
+    "TypeMappingRecord": {
+      "additionalProperties": false,
+      "description": "One applied column type mapping (SPEC \u00a75 type table).",
+      "properties": {
+        "column": {
+          "title": "Column",
+          "type": "string"
+        },
+        "delta_type": {
+          "title": "Delta Type",
+          "type": "string"
+        },
+        "iceberg_type": {
+          "title": "Iceberg Type",
+          "type": "string"
+        },
+        "type_widened": {
+          "default": false,
+          "title": "Type Widened",
+          "type": "boolean"
+        },
+        "length_constraint_dropped": {
+          "default": false,
+          "title": "Length Constraint Dropped",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "column",
+        "delta_type",
+        "iceberg_type"
+      ],
+      "title": "TypeMappingRecord",
+      "type": "object"
+    },
+    "ValidationResult": {
+      "additionalProperties": false,
+      "description": "Inline validation before a table is marked `STAGED` (SPEC \u00a78).\n\nCarries match flags, counts and a hash of the aggregate vector only \u2014 the\naggregate values themselves live on the conversion record.",
+      "properties": {
+        "row_count_source": {
+          "minimum": 0,
+          "title": "Row Count Source",
+          "type": "integer"
+        },
+        "row_count_target": {
+          "minimum": 0,
+          "title": "Row Count Target",
+          "type": "integer"
+        },
+        "row_count_match": {
+          "title": "Row Count Match",
+          "type": "boolean"
+        },
+        "schema_equivalent": {
+          "title": "Schema Equivalent",
+          "type": "boolean"
+        },
+        "checksum_columns": {
+          "description": "\u226420, selected deterministically (SPEC \u00a78)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Checksum Columns",
+          "type": "array"
+        },
+        "checksum_match": {
+          "title": "Checksum Match",
+          "type": "boolean"
+        },
+        "checksum_vector_hash": {
+          "title": "Checksum Vector Hash",
+          "type": "string"
+        },
+        "partition_count_source": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Partition Count Source",
+          "type": "integer"
+        },
+        "partition_count_target": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Partition Count Target",
+          "type": "integer"
+        },
+        "partition_distribution_match": {
+          "default": true,
+          "title": "Partition Distribution Match",
+          "type": "boolean"
+        },
+        "float_tolerance": {
+          "default": 1e-09,
+          "minimum": 0,
+          "title": "Float Tolerance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "row_count_source",
+        "row_count_target",
+        "row_count_match",
+        "schema_equivalent",
+        "checksum_match",
+        "checksum_vector_hash"
+      ],
+      "title": "ValidationResult",
+      "type": "object"
+    },
+    "WarningCode": {
+      "description": "Stable warning codes (SPEC \u00a75).",
+      "enum": [
+        "HISTORY_NOT_PRESERVED",
+        "HISTORY_TRUNCATED",
+        "TYPE_WIDENED",
+        "LENGTH_CONSTRAINT_DROPPED",
+        "SORT_ORDER_ADVISORY",
+        "CDF_WINDOW_TRUNCATED",
+        "CDF_UNUSED_DROPPED",
+        "TIMESTAMP_MODE"
+      ],
+      "title": "WarningCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Evidence record, one JSON per table (SPEC \u00a710).\n\nWritten to `s3://{client-bucket}/acc-migrate/evidence/{run_id}/{table}.json`\nSSE-KMS encrypted and referenced from the ledger. This is the only object\npermitted to hold column aggregates.",
+  "properties": {
+    "schema_version": {
+      "default": "0.3.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "record_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Record Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "attempt": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "state": {
+      "$ref": "#/$defs/TableState"
+    },
+    "table_ref": {
+      "$ref": "#/$defs/TableRef"
+    },
+    "source_location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Location"
+    },
+    "source_delta_version": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Delta Version"
+    },
+    "decision": {
+      "$ref": "#/$defs/StrategyDecision"
+    },
+    "strategy": {
+      "$ref": "#/$defs/Strategy"
+    },
+    "warnings": {
+      "items": {
+        "$ref": "#/$defs/StrategyWarning"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "staging_location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Staging Location"
+    },
+    "staging_glue_database": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Staging Glue Database"
+    },
+    "staging_glue_table": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Staging Glue Table"
+    },
+    "staged_snapshot_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Staged Snapshot Id"
+    },
+    "staged_metadata_location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Staged Metadata Location"
+    },
+    "production_location": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Production Location"
+    },
+    "production_glue_database": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Production Glue Database"
+    },
+    "production_glue_table": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Production Glue Table"
+    },
+    "promoted_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Promoted At"
+    },
+    "approval_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approval Id"
+    },
+    "delta_version_ledger": {
+      "description": "All versions still in the log (SPEC \u00a76)",
+      "items": {
+        "$ref": "#/$defs/DeltaVersionEntry"
+      },
+      "title": "Delta Version Ledger",
+      "type": "array"
+    },
+    "unrecoverable_versions": {
+      "description": "Vacuumed; reproducible by no strategy (SPEC \u00a76)",
+      "items": {
+        "type": "integer"
+      },
+      "title": "Unrecoverable Versions",
+      "type": "array"
+    },
+    "snapshot_map": {
+      "items": {
+        "$ref": "#/$defs/SnapshotMapping"
+      },
+      "title": "Snapshot Map",
+      "type": "array"
+    },
+    "history_effective_from_version": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "History Effective From Version"
+    },
+    "history_truncated": {
+      "default": false,
+      "title": "History Truncated",
+      "type": "boolean"
+    },
+    "type_mappings": {
+      "items": {
+        "$ref": "#/$defs/TypeMappingRecord"
+      },
+      "title": "Type Mappings",
+      "type": "array"
+    },
+    "timestamp_mode": {
+      "$ref": "#/$defs/TimestampMode",
+      "default": "timestamptz"
+    },
+    "athena_constraints": {
+      "description": "Recorded per table for timestamptz (Gate 0 #18, AT-21)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Athena Constraints",
+      "type": "array"
+    },
+    "partition_spec": {
+      "items": {
+        "$ref": "#/$defs/PartitionColumn"
+      },
+      "title": "Partition Spec",
+      "type": "array"
+    },
+    "sort_order": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sort Order",
+      "type": "array"
+    },
+    "row_count_source": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Row Count Source"
+    },
+    "row_count_target": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Row Count Target"
+    },
+    "validation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValidationResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "column_aggregates": {
+      "description": "Data values \u2014 encrypted record only, never logged",
+      "items": {
+        "$ref": "#/$defs/ColumnAggregate"
+      },
+      "title": "Column Aggregates",
+      "type": "array"
+    },
+    "read_validation": {
+      "items": {
+        "$ref": "#/$defs/EngineReadResult"
+      },
+      "title": "Read Validation",
+      "type": "array"
+    },
+    "cdf": {
+      "$ref": "#/$defs/CdfDetail"
+    },
+    "dlt": {
+      "$ref": "#/$defs/DltDetail"
+    },
+    "bridge": {
+      "$ref": "#/$defs/BridgeDetail"
+    },
+    "table_properties": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "acc.source_table, acc.strategy, \u2026 (SPEC \u00a77)",
+      "title": "Table Properties",
+      "type": "object"
+    },
+    "uc_tags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Uc Tags",
+      "type": "object"
+    },
+    "kms_key_arn": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kms Key Arn"
+    },
+    "evidence_uri": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Uri"
+    },
+    "cost": {
+      "$ref": "#/$defs/ActualCost"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "converted_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Converted At"
+    },
+    "last_error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ErrorEnvelope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Redacted (SPEC \u00a79)"
+    }
+  },
+  "required": [
+    "record_id",
+    "run_id",
+    "plan_id",
+    "state",
+    "table_ref",
+    "decision",
+    "strategy"
+  ],
+  "title": "ConversionRecord",
+  "type": "object"
+}
