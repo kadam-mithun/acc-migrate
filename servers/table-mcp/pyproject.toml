@@ -25,6 +25,24 @@ dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11", "bandit>=1.7", "
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+# Logging discipline (SPEC §10, OPEN_QUESTIONS #11). `extend-select`, not
+# `select`, so the default rule set is kept.
+#   T20    — flake8-print: no `print`/`pprint`; logs go through redact.py.
+#   TID251 — banned-api: no stdlib `logging`; structlog via redact.get_logger.
+# The third rule (no non-static event strings) is not expressible in ruff and
+# lives in tools/check_log_calls.py, run by CI and covered by test_lint_rules.py.
+[tool.ruff.lint]
+extend-select = ["T20", "TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"logging" = { msg = "use table_mcp.redact.get_logger(); stdlib logging bypasses the SPEC §10 redaction chain" }
+"logging.config" = { msg = "logging is configured once, by table_mcp.redact.configure_logging" }
+
+[tool.ruff.lint.per-file-ignores]
+# redact.py owns the logging machinery: it imports stdlib `logging` for the
+# level constant it passes to structlog, never to emit a record.
+"src/table_mcp/redact.py" = ["TID251"]
 [tool.mypy]
 strict = true
 [tool.pytest.ini_options]

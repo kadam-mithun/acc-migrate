@@ -36,7 +36,8 @@ tests/             unit/ integration/ acceptance/ fixtures/
 ```sh
 uv sync --extra dev
 uv run ruff check . && uv run ruff format --check .
-uv run mypy --strict src
+uv run mypy --strict src tools
+uv run python tools/check_log_calls.py src spark_jobs tests   # logging rule (c)
 uv run pytest -q
 PYTHONPATH=src uv run python -m table_mcp.schemas   # regenerate schemas/*.json
 ```

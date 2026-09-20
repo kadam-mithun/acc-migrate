@@ -11,6 +11,15 @@ jobs:
       - uses: astral-sh/setup-uv@v3
       - run: uv python install 3.12
       - run: for s in servers/*-mcp; do (cd "$s" && uv sync --frozen && uv run ruff check . && uv run mypy --strict src && uv run pytest -q --cov=src --cov-fail-under=80); done
+      # Logging discipline rule (c): no non-static log event strings. Rules (a)
+      # `print` and (b) stdlib `logging` are ruff T20/TID251, already covered by
+      # `ruff check .` above. Stdlib-only, so it needs no venv.
+      - run: |
+          for s in servers/*-mcp; do
+            if [ -f "$s/tools/check_log_calls.py" ]; then
+              (cd "$s" && python3 tools/check_log_calls.py src spark_jobs tests) || exit 1
+            fi
+          done
   security:
     runs-on: ubuntu-latest
     steps:

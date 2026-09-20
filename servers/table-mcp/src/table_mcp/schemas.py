@@ -990,7 +990,9 @@ def _export_json_schemas() -> None:
             json.dumps(model.model_json_schema(), indent=2, sort_keys=False) + "\n",
             encoding="utf-8",
         )
-        print(f"wrote {path}")
+        # Developer CLI, not server code: a file path we constructed, on stdout,
+        # outside the logging chain. Nothing here can carry a data value.
+        print(f"wrote {path}")  # noqa: T201
 
 
 if __name__ == "__main__":
