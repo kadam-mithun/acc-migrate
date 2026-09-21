@@ -35,10 +35,24 @@ def test_oracle_file_exists_and_parses(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", [STRATEGY_ORACLE, TYPES_ORACLE])
-def test_oracle_explains_who_fills_it_in(path: Path) -> None:
-    header = path.read_text(encoding="utf-8")
-    assert "WHO FILLS THIS IN" in header
+def test_oracle_states_it_is_authored_from_the_spec(path: Path) -> None:
+    """Root rule 5: the provenance claim must be on the file, not in folklore.
+
+    A future contributor regenerating these from `table-mcp` output would break
+    the whole point of the oracle, so each file says so in its own header.
+    """
+    # Collapse comment markers and line wrapping: the assertion is about what
+    # the header says, not how it happens to be wrapped.
+    header = " ".join(path.read_text(encoding="utf-8").replace("#", " ").split())
+
+    assert "AUTHORED FROM THE SPEC, NOT GENERATED FROM CODE" in header
+    assert "SPEC.md" in header
     assert "lead architect" in header
+    assert "never generated from the code under test" in header
+    assert "NOT captured from `table-mcp` output" in header
+    # The draft status must stay visible until the spec owner signs off
+    # (OPEN_QUESTIONS #16).
+    assert "awaiting sign-off" in header
 
 
 @pytest.mark.skipif(

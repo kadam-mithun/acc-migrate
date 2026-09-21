@@ -582,6 +582,14 @@
         "reason": {
           "title": "Reason",
           "type": "string"
+        },
+        "triggers": {
+          "description": "Which SPEC \u00a75 conditions fired, so a report can say why (enum slugs only)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Triggers",
+          "type": "array"
         }
       },
       "required": [

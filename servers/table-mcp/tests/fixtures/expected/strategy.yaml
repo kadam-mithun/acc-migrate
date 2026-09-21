@@ -1,36 +1,330 @@
-# Human-authored strategy oracle for table-mcp unit tests.
+# Strategy-matrix oracle for table-mcp unit tests.
 #
-# WHO FILLS THIS IN
-#   The lead architect (spec owner), reviewed by the senior engineer (WS-B) and
-#   the security lead, in a normal reviewed PR. Not Claude Code, and not any
-#   code-generation step.
+# ── AUTHORED FROM THE SPEC, NOT GENERATED FROM CODE ──────────────────────────
+# PROVENANCE, stated plainly because root rule 5 depends on it:
+#   Drafted by Claude Code on 2026-09-21, by transcribing §5 (the strategy matrix, the decision order and the named-warning list) of
+#   `SPEC.md` v0.3.2 line by line, on the instruction of the repo owner.
+#   NOT captured from `table-mcp` output, NOT round-tripped through the
+#   implementation, NOT reconciled against a test run.
 #
-# WHY IT IS HUMAN-AUTHORED
-#   Root CLAUDE.md rule 5 and SPEC §11: golden fixtures are never generated from
-#   the code under test. Expected *strategy* decisions are read off the SPEC §5
-#   matrix by a person, so the tests check the implementation against the spec
-#   rather than against itself. SPEC §11 / Gate 0 #9 make this explicit: the
-#   strategy and type oracles are human-authored YAML, unlike the row counts and
-#   checksum vectors in expected/<fixture>.json, which `fsi-fixtures
-#   snapshot-golden` records once from the live sandbox estate.
+#   STATUS: **awaiting sign-off.** Until the lead architect (spec owner) has
+#   read this file against §5 (the strategy matrix, the decision order and the named-warning list) and approved it in a reviewed PR, treat it
+#   as a draft oracle. It is an independent transcription, but it was not
+#   written by the human who owns the spec, and root rule 5 is about
+#   independence from the code — not about who typed it. See OPEN_QUESTIONS #16.
 #
-# WHAT GOES IN IT
-#   One entry per fixture table and per decision-order boundary in SPEC §5,
-#   keyed by the test name it drives (`test_strategy_rule_<id>`,
-#   `test_strategy_rule_S3_deletion_vectors`, `test_strategy_order_S6_beats_S1`,
-#   …). Each entry states the expected strategy, the matching rule id and every
-#   expected warning code, with the SPEC §5 row it comes from.
+# WHY IT IS NOT GENERATED: golden fixtures are never generated from the code
+# under test (root CLAUDE.md rule 5, SPEC §11, Gate 0 #9). `strategy.py` is tested against
+# the *specification* — if the implementation drifts these tests fail; if the
+# spec changes, a human edits this file first and the implementation follows.
+# Regenerating it from `table-mcp` output is a review failure, not a shortcut.
 #
-#   Suggested shape (delete this block when the first real entry lands):
-#
-#   test_strategy_rule_S1:
-#     spec_ref: "§5 row S1"
-#     profile: trades_plain          # fixture name or an inline profile
-#     options: {}
-#     expect:
-#       strategy: S1
-#       rule_id: S1
-#       warnings: []
-#
-# STATUS: empty. Strategy unit tests stay skipped until the first entry is
-# committed. Do not populate it from table-mcp output.
+# STRUCTURE: one entry per test, keyed by the test name it drives —
+#   test_strategy_rule_<id>             one per rule, S1 … S7
+#   test_strategy_rule_<id>_<trigger>   one per trigger condition in §5
+#   test_strategy_order_<A>_beats_<B>   one per decision-order boundary
+# `profile` is a sparse description; everything unstated is a plain table with
+# no Delta features (the AT-01 shape). `expect.warnings` is the complete set of
+# named warning codes for that decision — an unlisted code must not appear.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── One per rule ─────────────────────────────────────────────────────────────
+
+test_strategy_rule_S1:
+  spec_ref: "§5 row S1 — metadata-only snapshot, zero data copy"
+  profile: {}
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [] }
+
+test_strategy_rule_S2:
+  spec_ref: "§5 row S2 — metadata replay; history is opt-in (Gate 0 #1)"
+  profile:
+    version_ledger: [{ version: 0, recoverable: true }, { version: 1, recoverable: true }]
+  options: { history_days: 60 }
+  expect: { strategy: S2, rule_id: S2, warnings: [] }
+
+test_strategy_rule_S3:
+  spec_ref: "§5 row S3 — rewrite (compacting copy)"
+  profile: { deletion_vectors: true }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, warnings: [] }
+
+test_strategy_rule_S4:
+  spec_ref: "§5 row S4 — rewrite with CDF preservation"
+  profile: { change_data_feed: true, cdf_consumers: ["meridian_fin.gl.journal_rollup"] }
+  options: {}
+  expect: { strategy: S4, rule_id: S4, warnings: [] }
+
+test_strategy_rule_S5:
+  spec_ref: "§5 row S5 — DLT-managed, a modifier over the underlying strategy"
+  profile: { dlt_managed: true }
+  options: {}
+  expect: { strategy: S5, rule_id: S5, underlying_strategy: S1, warnings: [] }
+
+test_strategy_rule_S6:
+  spec_ref: "§5 row S6 — UniForm; do not convert, federate now"
+  profile: { uniform_iceberg: true }
+  options: {}
+  expect: { strategy: S6, rule_id: S6, eventual_strategy: S1, warnings: [] }
+
+test_strategy_rule_S7:
+  spec_ref: "§5 row S7 — unsupported, manual queue"
+  profile: { columns: [{ name: payload, type: VARIANT }] }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7, manual_reason: unsupported_type, warnings: [] }
+
+# ── One per S3 trigger condition (§5 row S3) ─────────────────────────────────
+
+test_strategy_rule_S3_deletion_vectors:
+  spec_ref: "§5 row S3 trigger: deletion vectors present (AT-03)"
+  profile: { deletion_vectors: true }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, trigger: deletion_vectors, warnings: [] }
+
+test_strategy_rule_S3_id_column_mapping:
+  spec_ref: "§5 row S3 trigger: column mapping id mode (AT-04)"
+  profile: { column_mapping: id }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, trigger: column_mapping_id_mode, warnings: [] }
+
+test_strategy_rule_S3_generated_columns:
+  spec_ref: "§5 row S3 trigger: generated columns"
+  profile: { generated_columns: [event_year] }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, trigger: generated_columns, warnings: [] }
+
+test_strategy_rule_S3_identity_columns:
+  spec_ref: "§5 row S3 trigger: identity columns"
+  profile: { identity_columns: [surrogate_key] }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, trigger: identity_columns, warnings: [] }
+
+test_strategy_rule_S3_non_identity_partitions:
+  spec_ref: "§5 row S3 trigger: any non-identity partition scheme (AT-10)"
+  profile:
+    partition_columns:
+      - { name: event_year, identity: false, generated_expression: "year(ts)" }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, trigger: non_identity_partition_scheme, warnings: [] }
+
+test_strategy_rule_S3_tiny_files:
+  spec_ref: "§5 row S3 trigger: >10,000 files AND median file size <8 MB (AT-09)"
+  profile: { active_file_count: 40000, median_file_size_bytes: 1572864 }
+  options: {}
+  expect: { strategy: S3, rule_id: S3, trigger: tiny_file_pathology, warnings: [] }
+
+test_strategy_rule_S3_relayout_requested:
+  spec_ref: "§5 row S3 trigger: client requests re-layout (Gate 0 #2, opt-in)"
+  profile: {}
+  options: { relayout: true }
+  expect: { strategy: S3, rule_id: S3, trigger: relayout_requested, warnings: [] }
+
+test_strategy_rule_S3_timestamp_mode_ntz_utc:
+  spec_ref: "§5 row S3 trigger: options.timestamp_mode = ntz_utc (Gate 0 #18)"
+  profile: {}
+  options: { timestamp_mode: ntz_utc }
+  expect: { strategy: S3, rule_id: S3, trigger: timestamp_mode_ntz_utc, warnings: [TIMESTAMP_MODE] }
+
+# ── S4 / S7 trigger conditions ───────────────────────────────────────────────
+
+test_strategy_rule_S4_requires_a_consumer:
+  spec_ref: "§5: CDF enabled with no table_changes() consumer is not S4"
+  profile: { change_data_feed: true }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [CDF_UNUSED_DROPPED] }
+
+test_strategy_rule_S7_interval:
+  spec_ref: "§5 type table: INTERVAL has no Iceberg equivalent (§14 row 28)"
+  profile: { columns: [{ name: window, type: INTERVAL }] }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7, manual_reason: unsupported_type, warnings: [] }
+
+test_strategy_rule_S7_variant:
+  spec_ref: "§5 type table: VARIANT is S7 in v1 (AT-08)"
+  profile: { columns: [{ name: payload, type: VARIANT }] }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7, manual_reason: unsupported_type, warnings: [] }
+
+test_strategy_rule_S7_void_column:
+  spec_ref: "§5 type table: VOID/NULL is S7 with reason void_column"
+  profile: { columns: [{ name: unused, type: VOID }] }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7, manual_reason: void_column, warnings: [] }
+
+test_strategy_rule_S7_corrupted_log:
+  spec_ref: "§5 row S7: corrupted log"
+  profile: { log_corrupted: true }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7, manual_reason: corrupted_log, warnings: [] }
+
+test_strategy_rule_S7_row_tracking_dependency:
+  spec_ref: "§5 row S7: row tracking with a downstream dependency"
+  profile: { row_tracking: true, downstream_consumers: ["meridian_fin.gl.audit"] }
+  options: {}
+  expect:
+    strategy: MANUAL
+    rule_id: S7
+    manual_reason: row_tracking_dependency
+    warnings: []
+
+test_strategy_rule_S7_row_tracking_without_dependency_is_not_manual:
+  spec_ref: "§5 row S7: row tracking alone is not unsupported — the dependency is"
+  profile: { row_tracking: true }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [] }
+
+test_strategy_rule_S7_type_widening_not_representable:
+  spec_ref: "§5 row S7: type widening not representable"
+  profile: { type_widening_unsupported: ["decimal(38,0) -> string"] }
+  options: {}
+  expect:
+    strategy: MANUAL
+    rule_id: S7
+    manual_reason: type_widening_not_representable
+    warnings: []
+
+# ── Decision-order boundaries (§5: S6 → S7 → S5 → S4 → S3 → S2 → S1) ────────
+
+test_strategy_order_S6_beats_S7:
+  spec_ref: "§5 decision order: S6 is evaluated before S7"
+  profile: { uniform_iceberg: true, columns: [{ name: payload, type: VARIANT }] }
+  options: {}
+  expect: { strategy: S6, rule_id: S6 }
+
+test_strategy_order_S6_beats_S1:
+  spec_ref: "§5 decision order: S6 wins over the default S1"
+  profile: { uniform_iceberg: true }
+  options: {}
+  expect: { strategy: S6, rule_id: S6 }
+
+test_strategy_order_S7_beats_S5:
+  spec_ref: "§5 decision order: S7 is evaluated before the S5 modifier"
+  profile: { dlt_managed: true, columns: [{ name: payload, type: VARIANT }] }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7 }
+
+test_strategy_order_S5_modifies_S3:
+  spec_ref: "§5 row S5: a modifier — the underlying rule still decides"
+  profile: { dlt_managed: true, deletion_vectors: true }
+  options: {}
+  expect: { strategy: S5, rule_id: S5, underlying_strategy: S3 }
+
+test_strategy_order_S4_beats_S3:
+  spec_ref: "§5 decision order: S4 is evaluated before S3"
+  profile:
+    change_data_feed: true
+    cdf_consumers: ["meridian_fin.gl.journal_rollup"]
+    deletion_vectors: true
+  options: {}
+  expect: { strategy: S4, rule_id: S4 }
+
+test_strategy_order_S3_beats_S2:
+  spec_ref: "§5 decision order: S3 before S2 — history is lost (AT-20)"
+  profile: { deletion_vectors: true }
+  options: { history_days: 60 }
+  expect: { strategy: S3, rule_id: S3, warnings: [HISTORY_NOT_PRESERVED] }
+
+test_strategy_order_S2_beats_S1:
+  spec_ref: "§5 decision order: S2 is evaluated before S1 when history is asked for"
+  profile:
+    version_ledger: [{ version: 0, recoverable: true }, { version: 1, recoverable: true }]
+  options: { history_versions: 10 }
+  expect: { strategy: S2, rule_id: S2 }
+
+# ── Named warnings (§5) ──────────────────────────────────────────────────────
+
+test_strategy_warning_history_truncated:
+  spec_ref: "§5/§6: S2 window cut at a vacuumed version"
+  profile:
+    version_ledger:
+      - { version: 0, recoverable: false }
+      - { version: 1, recoverable: false }
+      - { version: 2, recoverable: true }
+  options: { history_days: 90 }
+  expect: { strategy: S2, rule_id: S2, warnings: [HISTORY_TRUNCATED] }
+
+test_strategy_warning_cdf_window_truncated:
+  spec_ref: "§5: Delta CDF retention shorter than options.cdf_window_days"
+  profile:
+    change_data_feed: true
+    cdf_consumers: ["meridian_fin.gl.journal_rollup"]
+    cdf_retention_days: 7
+  options: { cdf_window_days: 30 }
+  expect: { strategy: S4, rule_id: S4, warnings: [CDF_WINDOW_TRUNCATED] }
+
+test_strategy_warning_type_widened:
+  spec_ref: "§5 type table: BYTE/SHORT widen to int; recorded as type_widened"
+  profile: { columns: [{ name: flag, type: BYTE }] }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [TYPE_WIDENED] }
+
+test_strategy_warning_length_constraint_dropped:
+  spec_ref: "§5 type table: CHAR(n)/VARCHAR(n) lose their length constraint"
+  profile: { columns: [{ name: code, type: CHAR(3) }] }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [LENGTH_CONSTRAINT_DROPPED] }
+
+test_strategy_warning_sort_order_advisory:
+  spec_ref: "§5 partitioning: liquid clustering → advisory Iceberg sort order"
+  profile: { liquid_clustering: true, clustering_columns: [trade_date, book] }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [SORT_ORDER_ADVISORY] }
+
+# ── Cases added after spec review (gaps in the first draft) ──────────────────
+
+test_strategy_order_S5_modifies_S4:
+  spec_ref: "§5 row S5 as a modifier over S4 — decision order S5 → S4"
+  profile:
+    dlt_managed: true
+    change_data_feed: true
+    cdf_consumers: ["meridian_fin.gl.journal_rollup"]
+  options: {}
+  expect: { strategy: S5, rule_id: S5, underlying_strategy: S4 }
+
+test_strategy_order_S5_modifies_S2:
+  spec_ref: "§5 row S5 as a modifier over S2 — decision order S5 → S2"
+  profile:
+    dlt_managed: true
+    version_ledger: [{ version: 0, recoverable: true }, { version: 1, recoverable: true }]
+  options: { history_days: 60 }
+  expect: { strategy: S5, rule_id: S5, underlying_strategy: S2 }
+
+test_strategy_rule_S6_eventual_strategy_is_rewrite:
+  spec_ref: "§5 row S6 — S1/S3 as the eventual strategy; deletion vectors mean S3"
+  profile: { uniform_iceberg: true, deletion_vectors: true }
+  options: {}
+  expect: { strategy: S6, rule_id: S6, eventual_strategy: S3, warnings: [] }
+
+test_strategy_warning_history_truncated_mid_ledger:
+  spec_ref: "§6: replay is oldest→newest, so a vacuum gap truncates the window"
+  profile:
+    version_ledger:
+      - { version: 0, recoverable: true }
+      - { version: 1, recoverable: false }
+      - { version: 2, recoverable: true }
+  options: { history_days: 90 }
+  expect: { strategy: S2, rule_id: S2, warnings: [HISTORY_TRUNCATED] }
+
+test_strategy_rule_S3_tiny_files_not_triggered_at_the_boundary:
+  spec_ref: "§5 row S3: the thresholds are strict — >10,000 files AND <8 MB median"
+  profile: { active_file_count: 10000, median_file_size_bytes: 8388608 }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [] }
+
+test_strategy_rule_S3_tiny_files_needs_both_conditions:
+  spec_ref: "§5 row S3: many files but a healthy median is not the pathology"
+  profile: { active_file_count: 40000, median_file_size_bytes: 268435456 }
+  options: {}
+  expect: { strategy: S1, rule_id: S1, warnings: [] }
+
+test_strategy_rule_S7_unrecognised_type_is_not_assumed_mappable:
+  spec_ref: "§5 row S7: a type the mapper cannot map must not reach zero-copy S1"
+  profile: { columns: [{ name: window, type: INTERVAL DAY TO SECOND }] }
+  options: {}
+  expect: { strategy: MANUAL, rule_id: S7, manual_reason: unsupported_type, warnings: [] }
+
+test_strategy_warning_history_not_preserved:
+  spec_ref: "§5 named warning HISTORY_NOT_PRESERVED — history asked for, S3 chosen (AT-20)"
+  profile: { deletion_vectors: true }
+  options: { history_days: 60 }
+  expect: { strategy: S3, rule_id: S3, warnings: [HISTORY_NOT_PRESERVED] }

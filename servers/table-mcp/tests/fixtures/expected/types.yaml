@@ -1,34 +1,154 @@
-# Human-authored Delta → Iceberg type-mapping oracle for table-mcp unit tests.
+# Delta → Iceberg type-mapping oracle for table-mcp unit tests.
 #
-# WHO FILLS THIS IN
-#   The lead architect (spec owner), reviewed by the senior engineer (WS-B) and
-#   the security lead, in a normal reviewed PR. Not Claude Code, and not any
-#   code-generation step.
+# ── AUTHORED FROM THE SPEC, NOT GENERATED FROM CODE ──────────────────────────
+# PROVENANCE, stated plainly because root rule 5 depends on it:
+#   Drafted by Claude Code on 2026-09-21, by transcribing §5 (the exhaustive type table) of
+#   `SPEC.md` v0.3.2 line by line, on the instruction of the repo owner.
+#   NOT captured from `table-mcp` output, NOT round-tripped through the
+#   implementation, NOT reconciled against a test run.
 #
-# WHY IT IS HUMAN-AUTHORED
-#   Root CLAUDE.md rule 5 and SPEC §11: golden fixtures are never generated from
-#   the code under test. The expected mappings are transcribed by a person from
-#   the exhaustive type table in SPEC §5 so that `types.py` is tested against
-#   the spec rather than against its own output (Gate 0 #9).
+#   STATUS: **awaiting sign-off.** Until the lead architect (spec owner) has
+#   read this file against §5 (the exhaustive type table) and approved it in a reviewed PR, treat it
+#   as a draft oracle. It is an independent transcription, but it was not
+#   written by the human who owns the spec, and root rule 5 is about
+#   independence from the code — not about who typed it. See OPEN_QUESTIONS #16.
 #
-# WHAT GOES IN IT
-#   One entry per row of the SPEC §5 type table, keyed by the test it drives
-#   (`test_type_map_<delta_type>`), covering every Delta type including the ones
-#   with no v1 mapping — INTERVAL, VARIANT and VOID/NULL all route to rule S7.
-#   Where the spec records a side effect, state it: BYTE/SHORT widen to `int`
-#   (`type_widened`), CHAR(n)/VARCHAR(n) drop their length constraint,
-#   TIMESTAMP maps to `timestamptz` by default and to `timestamp` under
-#   `options.timestamp_mode = "ntz_utc"`.
+# WHY IT IS NOT GENERATED: golden fixtures are never generated from the code
+# under test (root CLAUDE.md rule 5, SPEC §11, Gate 0 #9). `types.py` is tested against
+# the *specification* — if the implementation drifts these tests fail; if the
+# spec changes, a human edits this file first and the implementation follows.
+# Regenerating it from `table-mcp` output is a review failure, not a shortcut.
 #
-#   Suggested shape (delete this block when the first real entry lands):
-#
-#   test_type_map_BYTE:
-#     spec_ref: "§5 type table, row BYTE/SHORT/INT"
-#     delta_type: BYTE
-#     expect:
-#       iceberg_type: int
-#       type_widened: true
-#       length_constraint_dropped: false
-#
-# STATUS: empty. Type-mapping unit tests stay skipped until the first entry is
-# committed. Do not populate it from table-mcp output.
+# STRUCTURE: one entry per row of the SPEC §5 table, keyed by the test that
+# consumes it (`test_type_map_<delta_type>`). `iceberg_type` is the mapped type;
+# `type_widened` and `length_constraint_dropped` are the side effects the spec
+# says to record; `s7_reason` marks the rows with no Iceberg equivalent in v1.
+# ─────────────────────────────────────────────────────────────────────────────
+
+test_type_map_BYTE:
+  spec_ref: "§5 type table, row BYTE/SHORT/INT"
+  delta_type: BYTE
+  expect: { iceberg_type: int, type_widened: true, length_constraint_dropped: false }
+
+test_type_map_SHORT:
+  spec_ref: "§5 type table, row BYTE/SHORT/INT"
+  delta_type: SHORT
+  expect: { iceberg_type: int, type_widened: true, length_constraint_dropped: false }
+
+test_type_map_INT:
+  spec_ref: "§5 type table, row BYTE/SHORT/INT"
+  delta_type: INT
+  expect: { iceberg_type: int, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_LONG:
+  spec_ref: "§5 type table, row LONG"
+  delta_type: LONG
+  expect: { iceberg_type: long, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_FLOAT:
+  spec_ref: "§5 type table, row FLOAT"
+  delta_type: FLOAT
+  expect: { iceberg_type: float, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_DOUBLE:
+  spec_ref: "§5 type table, row DOUBLE"
+  delta_type: DOUBLE
+  expect: { iceberg_type: double, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_DECIMAL:
+  spec_ref: "§5 type table, row DECIMAL(p,s)"
+  delta_type: DECIMAL(18,2)
+  expect:
+    iceberg_type: "decimal(18,2)"
+    type_widened: false
+    length_constraint_dropped: false
+
+test_type_map_BOOLEAN:
+  spec_ref: "§5 type table, row BOOLEAN"
+  delta_type: BOOLEAN
+  expect: { iceberg_type: boolean, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_STRING:
+  spec_ref: "§5 type table, row STRING/CHAR(n)/VARCHAR(n)"
+  delta_type: STRING
+  expect: { iceberg_type: string, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_CHAR:
+  spec_ref: "§5 type table, row STRING/CHAR(n)/VARCHAR(n) — length constraint dropped"
+  delta_type: CHAR(10)
+  expect: { iceberg_type: string, type_widened: false, length_constraint_dropped: true }
+
+test_type_map_VARCHAR:
+  spec_ref: "§5 type table, row STRING/CHAR(n)/VARCHAR(n) — length constraint dropped"
+  delta_type: VARCHAR(255)
+  expect: { iceberg_type: string, type_widened: false, length_constraint_dropped: true }
+
+test_type_map_BINARY:
+  spec_ref: "§5 type table, row BINARY"
+  delta_type: BINARY
+  expect: { iceberg_type: binary, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_DATE:
+  spec_ref: "§5 type table, row DATE"
+  delta_type: DATE
+  expect: { iceberg_type: date, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_TIMESTAMP:
+  spec_ref: "§5 type table, row TIMESTAMP; Gate 0 #18"
+  delta_type: TIMESTAMP
+  expect: { iceberg_type: timestamptz, type_widened: false, length_constraint_dropped: false }
+  # options.timestamp_mode = "ntz_utc" normalises to UTC instead, and forces S3.
+  expect_ntz_utc: { iceberg_type: timestamp }
+
+test_type_map_TIMESTAMP_NTZ:
+  spec_ref: "§5 type table, row TIMESTAMP_NTZ"
+  delta_type: TIMESTAMP_NTZ
+  expect: { iceberg_type: timestamp, type_widened: false, length_constraint_dropped: false }
+
+test_type_map_ARRAY:
+  spec_ref: "§5 type table, row ARRAY<T> — recursive"
+  delta_type: ARRAY<INT>
+  expect: { iceberg_type: "list<int>", type_widened: false, length_constraint_dropped: false }
+
+test_type_map_MAP:
+  spec_ref: "§5 type table, row MAP<K,V> — recursive"
+  delta_type: MAP<STRING,LONG>
+  expect:
+    iceberg_type: "map<string,long>"
+    type_widened: false
+    length_constraint_dropped: false
+
+test_type_map_STRUCT:
+  spec_ref: "§5 type table, row STRUCT<...> — recursive"
+  delta_type: "STRUCT<a:INT,b:STRING>"
+  expect:
+    iceberg_type: "struct<a:int,b:string>"
+    type_widened: false
+    length_constraint_dropped: false
+
+test_type_map_INTERVAL:
+  spec_ref: "§5 type table, row INTERVAL — no Iceberg equivalent; §14 row 28"
+  delta_type: INTERVAL
+  expect: { s7_reason: unsupported_type }
+
+test_type_map_VARIANT:
+  spec_ref: "§5 type table, row VARIANT — S7 in v1, Iceberg V3 is v1.1"
+  delta_type: VARIANT
+  expect: { s7_reason: unsupported_type }
+
+test_type_map_VOID:
+  spec_ref: "§5 type table, row VOID/NULL — reason void_column"
+  delta_type: VOID
+  expect: { s7_reason: void_column }
+
+test_type_map_NULL:
+  spec_ref: "§5 type table, row VOID/NULL — reason void_column"
+  delta_type: "NULL"
+  expect: { s7_reason: void_column }
+
+# Nesting carries the S7 verdict outward: a container of an unmappable type is
+# itself unmappable (§5 "Recursive").
+test_type_map_nested_unmappable:
+  spec_ref: "§5 type table, recursive rows combined with the S7 rows"
+  delta_type: ARRAY<VARIANT>
+  expect: { s7_reason: unsupported_type }

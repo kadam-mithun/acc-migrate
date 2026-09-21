@@ -332,6 +332,10 @@ class TableFeatures(_Base):
     constraints: dict[str, UntrustedText] = Field(default_factory=dict)
     row_tracking: bool = False
     type_widening: bool = False
+    type_widening_unsupported: list[str] = Field(
+        default_factory=list,
+        description="Recorded widenings with no Iceberg representation → S7 (SPEC §5)",
+    )
     uniform_iceberg: bool = Field(
         default=False, description="UniForm Iceberg metadata enabled (S6)"
     )
@@ -413,8 +417,12 @@ class TableProfile(_Base):
     cdf_consumers: list[str] = Field(
         default_factory=list, description="Downstream table_changes() consumers from lineage (S4)"
     )
-    unsupported_types: list[str] = Field(
-        default_factory=list, description="Types with no Iceberg mapping → S7 (SPEC §5)"
+    downstream_consumers: list[str] = Field(
+        default_factory=list,
+        description="Any lineage dependent; row tracking plus a dependent is S7 (SPEC §5)",
+    )
+    log_corrupted: bool = Field(
+        default=False, description="Delta log unreadable or inconsistent → S7 (SPEC §5)"
     )
     uc_tags: dict[UntrustedText, UntrustedText] = Field(default_factory=dict)
     comment: UntrustedText | None = None
@@ -435,6 +443,10 @@ class RuleEvaluation(_Base):
     rule_id: StrategyRuleId
     matched: bool
     reason: str
+    triggers: list[str] = Field(
+        default_factory=list,
+        description="Which SPEC §5 conditions fired, so a report can say why (enum slugs only)",
+    )
 
 
 class StrategyWarning(_Base):
