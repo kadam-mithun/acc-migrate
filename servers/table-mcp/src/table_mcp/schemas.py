@@ -16,11 +16,14 @@ Rules that shape this module:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+
+from table_mcp.sanitize import sanitize_source_text
 
 # Fully-qualified `catalog.schema.table`, used where a cross-service contract
 # needs a scalar table identity (SPEC §9.1).
@@ -48,6 +51,23 @@ KmsKeyArn = Annotated[str, Field(pattern=KMS_KEY_ARN_PATTERN)]
 # The Iceberg transform grammar (SPEC §5 partitioning). An allow-list, because
 # this value is derived from source metadata and reaches partition-spec DDL.
 ICEBERG_TRANSFORM_PATTERN = r"^(identity|void|year|month|day|hour|bucket\[\d+\]|truncate\[\d+\])$"
+
+# UC-authored text (comments, tags, constraints, generated expressions). The
+# validator runs at the model boundary, so a model carrying raw source text
+# cannot be constructed (SPEC §10, §14 row 26).
+UntrustedText = Annotated[str, BeforeValidator(sanitize_source_text)]
+
+
+def is_supported_identifier(value: str) -> bool:
+    """True when `value` is a UC identifier this version can handle.
+
+    A non-conforming identifier is **not** dropped: SPEC §14 row 23 makes it an
+    S7 decision with reason `UNSUPPORTED_IDENTIFIER`, reported through
+    :class:`UnsupportedTable` so `assess-mcp` can count it. Backtick-quoted
+    identifier support is v1.1.
+    """
+    return re.match(IDENTIFIER_PATTERN, value) is not None
+
 
 SCHEMA_VERSION = "0.3.1"
 
@@ -148,6 +168,22 @@ class ErrorCode(StrEnum):
     INTERNAL = "INTERNAL"
 
 
+class ManualReason(StrEnum):
+    """Why a table routed to rule S7 (`strategy = MANUAL`).
+
+    Values are the exact spellings SPEC §5 and §14 use; the casing is
+    inconsistent in the spec itself and is reproduced rather than normalised so
+    the strings match what `assess-mcp` and the client report expect.
+    """
+
+    UNSUPPORTED_IDENTIFIER = "UNSUPPORTED_IDENTIFIER"
+    UNSUPPORTED_TYPE = "unsupported_type"
+    VOID_COLUMN = "void_column"
+    ROW_TRACKING_DEPENDENCY = "row_tracking_dependency"
+    TYPE_WIDENING_NOT_REPRESENTABLE = "type_widening_not_representable"
+    CORRUPTED_LOG = "corrupted_log"
+
+
 class ColumnMappingMode(StrEnum):
     """Delta `delta.columnMapping.mode`."""
 
@@ -190,37 +226,6 @@ class ApprovalDecision(StrEnum):
 # --------------------------------------------------------------------------- #
 
 
-class TableMcpError(Exception):
-    """A refusal or failure that already knows its `ErrorCode`.
-
-    SPEC §3 names the codes the caller must be able to act on —
-    `APPROVAL_REQUIRED` (AT-13), `APPROVAL_INVALID`, `ALREADY_PROMOTED`,
-    `LOCKED` (AT-12), `KMS_KEY_REQUIRED` (AT-15), `WRITE_GRANT_PRESENT`
-    (AT-14). Domain modules raise this so the code survives to the envelope
-    instead of collapsing into `INTERNAL`; `server._dispatch` maps it ahead of
-    the generic branch.
-
-    The message is authored by us, never a library string, so it is safe to
-    log — unlike a wrapped third-party exception, which `redact.py` scrubs.
-    """
-
-    def __init__(
-        self,
-        code: ErrorCode,
-        message: str,
-        *,
-        retryable: bool = False,
-        table: str | None = None,
-        hint: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.retryable = retryable
-        self.table = table
-        self.hint = hint
-
-
 class ErrorEnvelope(_Base):
     """Structured error returned by every tool (SPEC §3).
 
@@ -241,17 +246,37 @@ class ErrorEnvelope(_Base):
 
 
 class TableRef(_Base):
-    """A Delta table in Unity Catalog.
+    """The identity of a Delta table in Unity Catalog — nothing else.
 
-    The three identity fields are always present. The remaining fields are the
-    discovery attributes of SPEC §3 `discover_tables`; they are `None` when the
-    ref is passed to another tool purely as an identifier.
+    Frozen and identity-only per SPEC §3 and §14 row 21. Every table-scoped tool
+    takes this type; only `discover_tables` returns :class:`DiscoveredTable`, so
+    no tool can be handed a half-populated ref whose discovery attributes are
+    silently `None`.
+
+    Being frozen also makes it hashable, so a ref is usable as a dict key in the
+    plan and the manifest without a defensive copy.
     """
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     catalog: Identifier
     schema_name: Identifier = Field(alias="schema")
     name: Identifier
 
+    @property
+    def fqn(self) -> str:
+        """`catalog.schema.table`."""
+        return f"{self.catalog}.{self.schema_name}.{self.name}"
+
+
+class DiscoveredTable(_Base):
+    """A `TableRef` plus what discovery learned about it (SPEC §3).
+
+    Returned only by `discover_tables`. Everything past `table_ref` is an
+    attribute of the source table, not part of its identity.
+    """
+
+    table_ref: TableRef
     location: str | None = Field(default=None, description="Source S3 URI of the Delta table")
     table_format: str | None = Field(default=None, description='Source format, e.g. "DELTA"')
     format_details: dict[str, str] = Field(default_factory=dict)
@@ -259,11 +284,24 @@ class TableRef(_Base):
     last_modified: datetime | None = None
     managed: bool | None = Field(default=None, description="True = UC managed, False = external")
     dlt_managed: bool | None = None
+    comment: UntrustedText | None = None
+    uc_tags: dict[UntrustedText, UntrustedText] = Field(default_factory=dict)
 
-    @property
-    def fqn(self) -> str:
-        """`catalog.schema.table`."""
-        return f"{self.catalog}.{self.schema_name}.{self.name}"
+
+class UnsupportedTable(_Base):
+    """A source table this version cannot name (SPEC §14 row 23).
+
+    Reported, never dropped: the raw identifier parts are sanitised source text,
+    so they are safe to display and count, and the decision is S7 `MANUAL` with
+    reason `UNSUPPORTED_IDENTIFIER`. `assess-mcp` counts these per estate so a
+    client exception surfaces at assessment rather than at conversion.
+    """
+
+    catalog: UntrustedText
+    schema_name: UntrustedText = Field(alias="schema")
+    name: UntrustedText
+    reason: ManualReason = ManualReason.UNSUPPORTED_IDENTIFIER
+    detail: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -291,7 +329,7 @@ class TableFeatures(_Base):
     clustering_columns: list[str] = Field(default_factory=list)
     generated_columns: list[str] = Field(default_factory=list)
     identity_columns: list[str] = Field(default_factory=list)
-    constraints: dict[str, str] = Field(default_factory=dict)
+    constraints: dict[str, UntrustedText] = Field(default_factory=dict)
     row_tracking: bool = False
     type_widening: bool = False
     uniform_iceberg: bool = Field(
@@ -306,8 +344,8 @@ class ColumnProfile(_Base):
     name: str
     delta_type: str
     nullable: bool = True
-    comment: str | None = None
-    generated_expression: str | None = None
+    comment: UntrustedText | None = None
+    generated_expression: UntrustedText | None = None
     is_identity: bool = False
 
 
@@ -317,7 +355,7 @@ class PartitionColumn(_Base):
     name: str
     identity: bool = Field(description="False for generated/transformed partitions → S3 (SPEC §5)")
     source_column: str | None = None
-    generated_expression: str | None = None
+    generated_expression: UntrustedText | None = None
     iceberg_transform: str | None = Field(
         default=None,
         pattern=ICEBERG_TRANSFORM_PATTERN,
@@ -378,8 +416,8 @@ class TableProfile(_Base):
     unsupported_types: list[str] = Field(
         default_factory=list, description="Types with no Iceberg mapping → S7 (SPEC §5)"
     )
-    uc_tags: dict[str, str] = Field(default_factory=dict)
-    comment: str | None = None
+    uc_tags: dict[UntrustedText, UntrustedText] = Field(default_factory=dict)
+    comment: UntrustedText | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -415,6 +453,22 @@ class CostEstimate(_Base):
     estimated_usd: float | None = Field(default=None, ge=0)
 
 
+class SourceMetadata(_Base):
+    """UC-authored text, carried apart from anything a model is told to obey.
+
+    SPEC §10: rationale strings are template + enum only and never interpolate
+    source text; it travels here instead, already sanitised by the model
+    boundary, and is marked with `sanitize.mark_untrusted` wherever it can reach
+    a model context.
+    """
+
+    table_comment: UntrustedText | None = None
+    column_comments: dict[str, UntrustedText] = Field(default_factory=dict)
+    uc_tags: dict[UntrustedText, UntrustedText] = Field(default_factory=dict)
+    constraints: dict[str, UntrustedText] = Field(default_factory=dict)
+    generated_expressions: dict[str, UntrustedText] = Field(default_factory=dict)
+
+
 class StrategyDecision(_Base):
     """`StrategyDecision {strategy, rationale[], warnings[], estimated_duration,
     estimated_cost}` (SPEC §3)."""
@@ -432,8 +486,15 @@ class StrategyDecision(_Base):
     eventual_strategy: Strategy | None = Field(
         default=None, description="S6 records the strategy to apply at cut-over"
     )
-    manual_reason: str | None = Field(
+    manual_reason: ManualReason | None = Field(
         default=None, description="Required when strategy is MANUAL (rule S7)"
+    )
+    manual_detail: str | None = Field(
+        default=None, description="Template + enum text only; never source text (SPEC §10)"
+    )
+    source_metadata: SourceMetadata = Field(
+        default_factory=SourceMetadata,
+        description="UC-authored text, sanitised and kept out of the rationale (SPEC §10)",
     )
 
 
@@ -726,7 +787,8 @@ class ConversionRecord(_Base):
     table_properties: dict[str, str] = Field(
         default_factory=dict, description="acc.source_table, acc.strategy, … (SPEC §7)"
     )
-    uc_tags: dict[str, str] = Field(default_factory=dict)
+    uc_tags: dict[UntrustedText, UntrustedText] = Field(default_factory=dict)
+    source_metadata: SourceMetadata = Field(default_factory=SourceMetadata)
 
     kms_key_arn: str | None = None
     evidence_uri: str | None = None
@@ -796,10 +858,16 @@ class DiscoverTablesInput(ToolInput):
 
 
 class DiscoverTablesOutput(_Base):
+    """SPEC §3: returns `DiscoveredTable[]`, plus the tables this version cannot
+    name (§14 row 23) — reported, never silently dropped."""
+
     run_id: RunId
     catalog: str
-    tables: list[TableRef] = Field(default_factory=list)
+    tables: list[DiscoveredTable] = Field(default_factory=list)
     table_count: int = Field(ge=0)
+    unsupported: list[UnsupportedTable] = Field(
+        default_factory=list, description="S7 UNSUPPORTED_IDENTIFIER; counted by assess-mcp"
+    )
 
 
 class ProfileTableInput(ToolInput):
@@ -814,12 +882,12 @@ class ProfileTableOutput(_Base):
 
 
 class RecommendStrategyInput(ToolInput):
-    """`recommend_strategy(profile)`.
+    """`recommend_strategy(profile, options)` (SPEC §3, §14 row 20).
 
-    `options` is carried alongside the profile because SPEC §5 makes several
-    rules option-dependent (S2 needs `history_days`/`history_versions`; S3 is
-    forced by `timestamp_mode = "ntz_utc"`; `relayout`). It defaults to the
-    no-side-effect defaults of Gate 0 #1/#2. See OPEN_QUESTIONS #5.
+    `options` carries the decision-affecting settings — `history_days` /
+    `history_versions` (S2), `timestamp_mode = "ntz_utc"` (forces S3),
+    `relayout`, `register_bridge`, `cdf_window_days` — and defaults to the
+    no-side-effect values of Gate 0 #1/#2/#5.
     """
 
     profile: TableProfile

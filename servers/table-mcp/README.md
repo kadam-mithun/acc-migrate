@@ -8,8 +8,8 @@ entirely inside the client's AWS account.
 
 ## Status
 
-Scaffold. The I/O contract (`schemas.py`), the tool registration (`server.py`)
-and the test skeleton exist; the domain modules are stubs that raise
+Scaffold, built to SPEC v0.3.2. The I/O contract (`schemas.py`), the tool
+registration (`server.py`) and the test skeleton exist; the domain modules are stubs that raise
 `NotImplementedError` against their SPEC section, and the acceptance tests
 AT-01 … AT-22 are skipped stubs carrying their pass criteria.
 
@@ -24,9 +24,11 @@ src/table_mcp/
   discover.py profile.py strategy.py types.py partitioning.py
   convert/         s1_snapshot s2_replay s3_rewrite s4_cdf s6_bridge
   glue.py validate.py promote.py ledger.py locks.py
-  telemetry.py storage.py redact.py selfcheck.py
+  telemetry.py storage.py redact.py selfcheck.py errors.py sanitize.py
 schemas/           approval_record.json, conversion_record.json
 spark_jobs/        rewrite_job.py, cdf_job.py
+policies/          nowrite.semgrep.yml, .importlinter   (no-write gate)
+tools/             check_log_calls.py                   (logging rule c)
 terraform/modules/ table-mcp-role, table-mcp-emr  (gated on human approval)
 tests/             unit/ integration/ acceptance/ fixtures/
 ```
@@ -38,6 +40,8 @@ uv sync --extra dev
 uv run ruff check . && uv run ruff format --check .
 uv run mypy --strict src tools
 uv run python tools/check_log_calls.py src spark_jobs tests   # logging rule (c)
+uvx semgrep --config policies/nowrite.semgrep.yml --error src spark_jobs tools
+PYTHONPATH=src uv run lint-imports --config policies/.importlinter
 uv run pytest -q
 PYTHONPATH=src uv run python -m table_mcp.schemas   # regenerate schemas/*.json
 ```

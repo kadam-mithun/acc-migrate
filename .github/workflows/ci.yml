@@ -24,9 +24,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
       - uses: gitleaks/gitleaks-action@v2
       - uses: returntocorp/semgrep-action@v1
         with: { config: "p/python p/secrets" }
+      # Mechanical no-write gate (SPEC §10, §14 row 27; root rule 2). Call sites
+      # via semgrep, module boundaries via import-linter. Each server ships its
+      # own policies/, so the loop skips servers that have none yet.
+      - run: |
+          for s in servers/*-mcp; do
+            if [ -f "$s/policies/nowrite.semgrep.yml" ]; then
+              (cd "$s" && uvx semgrep --quiet --config policies/nowrite.semgrep.yml \
+                 --error src spark_jobs tools) || exit 1
+            fi
+            if [ -f "$s/policies/.importlinter" ]; then
+              (cd "$s" && uv sync --frozen --extra dev \
+                 && PYTHONPATH=src uv run lint-imports --config policies/.importlinter) || exit 1
+            fi
+          done
       - uses: aquasecurity/trivy-action@0.28.0
         with: { scan-type: fs, severity: HIGH,CRITICAL, exit-code: 1 }
       # Two steps, not one glob: the action passes `directory` straight to

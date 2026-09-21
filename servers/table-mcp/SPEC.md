@@ -1,5 +1,5 @@
 # `table-mcp` — Delta Lake → Apache Iceberg Conversion Service
-## Build Specification v0.3.1 (Phase 0 deliverable; Session 0 complete, ready for Session 1)
+## Build Specification v0.3.2 (Session 1 scaffold questions resolved 20 Sep 2026; ready for Session 2)
 
 **Owner:** Lead architect · **Reviewers:** Senior engineer (WS-B), Security lead · **Status:** Draft for Gate 0
 **Repo path:** `acc-migrate/servers/table-mcp/` · **Language:** Python 3.12, PySpark 3.5 on EMR Serverless, PyIceberg, delta-rs
@@ -32,15 +32,15 @@ Server name: `table-mcp`. Transport: streamable HTTP via AgentCore Gateway; also
 
 | Tool | Purpose | Autonomy |
 |---|---|---|
-| `discover_tables(catalog, schema?, filter?)` | List Delta tables in scope via Unity Catalog system tables; returns `TableRef[]` with location, format details, size, last modified, managed/external, DLT-managed flag | Read-only |
+| `discover_tables(catalog, schema?, filter?)` | List Delta tables in scope via Unity Catalog system tables; returns `DiscoveredTable[]` = a frozen `TableRef` identity (`catalog`, `schema`, `name`) plus discovery attributes (location, format details, size, last modified, managed/external, DLT-managed flag). Every other table-scoped tool takes the bare `TableRef`; the two types are distinct so no tool can receive a half-populated ref | Read-only |
 | `profile_table(table_ref)` | Deep inspection of the Delta log: protocol versions, table features (deletion vectors, column mapping, CDF, liquid clustering, generated columns, constraints, identity columns), partition scheme, schema history, version count and span, active file count, tombstones | Read-only |
-| `recommend_strategy(profile)` | Returns `StrategyDecision {strategy, rationale[], warnings[], estimated_duration, estimated_cost}` per section 5 | Pure function |
+| `recommend_strategy(profile, options)` | Returns `StrategyDecision {strategy, rationale[], warnings[], estimated_duration, estimated_cost}` per section 5. `options` carries the decision-affecting settings (`history_days`/`history_versions`, `timestamp_mode`, `relayout`, `register_bridge`, `cdf_window_days`) and defaults to the no-side-effect values (no history, no re-layout, no bridge) | Pure function |
 | `plan_conversion(table_refs[], target, options)` | Produces a `ConversionPlan` — per-table strategy, ordering, parallelism, staging locations, estimated totals; no side effects | Pure function |
 | `execute_conversion(plan_id, table_ref?, force=false)` | Runs the plan (or one table of it) into staging; writes conversion records; resumable. `force=true` re-converts a table in `STAGED`/`VALIDATED` after cleaning its staging output; **refused with `ALREADY_PROMOTED` for `PROMOTED` tables** (rollback of a promoted table is a separate, approved operation in v1.1). For S6 tables: with `options.register_bridge=true` registers the Glue bridge and sets state `FEDERATED`; otherwise records the decision and sets state `SKIPPED_S6` with no side effects | L2 — staging only |
 | `validate_reads(table_ref)` | Confirms the staged Iceberg table reads from Athena, Redshift (native Glue-mounted Iceberg read; Spectrum external schema as fallback) and EMR Spark; returns row count and schema from each engine | Read-only on target |
 | `promote_table(table_ref, approval_id)` | Moves the staged table to the production database/prefix; validates the approval record per §9.1. Missing/unknown `approval_id` → `APPROVAL_REQUIRED`; record present but any field mismatch → `APPROVAL_INVALID` | L1 — human approval required |
 | `rollback_table(table_ref)` | Removes the staged table and its metadata; never touches source | L2 |
-| `get_conversion_record(table_ref)` | Returns the evidence record for a table | Read-only |
+| `get_conversion_record(table_ref)` | Returns the evidence record with `column_aggregates` **always stripped** (enforced on the output model), leaving `validation.checksum_vector_hash` and the match flags. Aggregates are data values and must never reach an agent context or a span payload | Read-only |
 
 All tools accept `run_id` and emit OpenTelemetry spans tagged with `run_id`, `table_ref`, `strategy`.
 
@@ -157,9 +157,12 @@ Delta versions and Iceberg snapshots are not equivalent. The service is explicit
 ## 10. Security, logging, evidence
 
 - IAM policy shipped as Terraform module `modules/table-mcp-role` (**module design approved by a human at Session 5 before any Terraform is written**, per root rules): `s3:GetObject/ListBucket` on source prefixes; `s3:*Object` on `iceberg/staging/*`, `iceberg/*` and `acc-migrate/evidence/*` of the client bucket; `glue:*Table/*Database` on the named databases; `kms:Encrypt/Decrypt/GenerateDataKey` on the client CMK; `emr-serverless:StartJobRun/GetJobRun/CancelJobRun/ListJobRuns` on the named application plus `iam:PassRole` for the job execution role; `iam:SimulatePrincipalPolicy` on its own role ARN (self-check); `athena:StartQueryExecution/GetQueryExecution/GetQueryResults` on the named workgroup and `s3:*Object` on the Athena results prefix `acc-migrate/athena-results/*`; `redshift-data:ExecuteStatement/DescribeStatement/GetStatementResult` and `redshift-serverless:GetCredentials` on the named workgroup; `dynamodb:*Item/Query/UpdateItem` on the run table; `secretsmanager:GetSecretValue` on the one Databricks secret; `kms:*` as above. Nothing else. Checkov-clean. Every resource is a named ARN; no wildcards.
+- **Mechanical no-write gate (root rule 2 is no longer review-only).** CI fails on: a semgrep ruleset banning `write_deltalake`, `DeltaTable.merge/update/delete/vacuum/restore`, `.write.`/`.writeTo(` where the target resolves to a source URI, and any Databricks SQL execution outside `discover.py`/`profile.py`; plus `import-linter` contracts asserting that no module except `discover.py` and `profile.py` may import the Databricks SQL client, and that `convert/`, `promote.py` and `glue.py` may not import `deltalake` write APIs. Rules live in `policies/nowrite.semgrep.yml` and `.importlinter`, with tests proving each fires.
 - **KMS enforcement (three layers, replaces the literal "one write helper" rule):** (1) `execute_conversion` refuses without `options.kms_key_arn`; (2) the ARN is injected into Spark (`fs.s3a.server-side-encryption*`) and PyIceberg FileIO (`s3.sse.*`) configuration at job start, so both libraries write SSE-KMS natively; (3) the Terraform module attaches a bucket policy denying `s3:PutObject` without `aws:kms` on the staging and production prefixes. `storage.py` holds the config builders and the precondition, not a wrapper around every write. Recorded as `docs/adr/ADR-0001-kms-enforcement.md` at repo root (all ADRs live under `docs/adr/`).
 - **Redaction layer (`redact.py`):** all log emission passes through it. Partition paths are logged with partition *values* replaced by a stable hash (`trade_date=<h:8f3a>`); exceptions from PySpark, delta-rs, PyIceberg and Pydantic are wrapped in `ErrorEnvelope` with the library message scrubbed of quoted literals and path values before logging; Pydantic validation errors report field names only. No table data in logs. Logs carry counts, hashes, redacted paths, durations, and warnings.
+- **Untrusted source text (§7 Glue parameters, `StrategyDecision.rationale`, any agent-visible field).** UC comments, tags, `constraints` and `generated_expression` are attacker-influencable. Before any such string reaches Glue, a log, a record or a prompt it is passed through `sanitize_source_text()`: strip all control characters and zero-width code points, normalise to NFC, cap at 1,024 characters (truncation marked), and wrap in the marker `<x-untrusted src="uc:{field}">…</x-untrusted>` wherever it can reach a model context. Rationale strings composed by `strategy.py` are template + enum only; no source text is interpolated into them — source text is carried in a separate `source_metadata` field that agents are instructed to treat as data.
 - **Startup self-check scope:** (a) Databricks: resolve effective privileges for the service principal including group inheritance, ownership and catalog/schema-level grants via `information_schema.*_privileges` and `system.access` — any `MODIFY`, `CREATE*`, `WRITE*`, `MANAGE` or ownership on in-scope securables is a hard stop; (b) AWS: `iam:SimulatePrincipalPolicy` for `s3:PutObject`/`DeleteObject` on every discovered source prefix must return a deny (`implicitDeny` or `explicitDeny`); `allowed` is a hard stop; (c) staging/source prefix disjointness.
+- **Auditor path for aggregates.** The full record including `column_aggregates` exists only in the encrypted evidence object in the client bucket. It is read by `acc-migrate evidence show --table <ref> --include-aggregates`, a CLI command that requires a separate IAM permission (`s3:GetObject` on the evidence prefix granted to an auditor role, not to the server role) and writes to the operator's terminal only. There is no MCP tool, no agent path and no log path to aggregates.
 - Conversion record (JSON, one per table) written to `s3://{client-bucket}/acc-migrate/evidence/{run_id}/{table}.json` and referenced from the ledger. Schema in `schemas/conversion_record.json`.
 - OpenTelemetry spans for each tool call and each strategy step; exported to CloudWatch via AgentCore Observability.
 
@@ -220,11 +223,13 @@ servers/table-mcp/
     server.py                ← MCP tool registration only; no logic
     schemas.py               ← Pydantic models for every input/output
     discover.py  profile.py  strategy.py  types.py  partitioning.py
-    convert/ {s1_snapshot.py, s2_replay.py, s3_rewrite.py, s4_cdf.py, s6_bridge.py}
-    glue.py  validate.py  promote.py  ledger.py  locks.py  telemetry.py  storage.py  redact.py  selfcheck.py
+    convert/ {__init__.py ← execute_conversion / rollback_table orchestration + COMMIT_ORDER, s1_snapshot.py, s2_replay.py, s3_rewrite.py, s4_cdf.py, s6_bridge.py}
+    glue.py  validate.py  promote.py  ledger.py  locks.py  telemetry.py  storage.py  redact.py  selfcheck.py  errors.py  sanitize.py
   schemas/ {conversion_record.json, approval_record.json}
   OPEN_QUESTIONS.md            ← ADRs live at repo root: docs/adr/ADR-0001-kms-enforcement.md
   spark_jobs/ rewrite_job.py cdf_job.py
+  policies/ nowrite.semgrep.yml   .importlinter
+  tools/check_log_calls.py
   terraform/ modules/table-mcp-role, modules/table-mcp-emr
   tests/ unit/ integration/ fixtures/ acceptance/
 ```
@@ -260,4 +265,13 @@ servers/table-mcp/
 | 16 | Approval error codes | `APPROVAL_REQUIRED` vs `APPROVAL_INVALID` (§3). |
 | 17 | `force` on PROMOTED | Refused, `ALREADY_PROMOTED` (§3, §9). |
 | 18 | Delta `TIMESTAMP` → `timestamptz` | Confirmed against Athena docs: queryable; only Athena DDL is restricted. Default kept; `timestamp_mode=ntz_utc` opt-in (§5, AT-21). |
+| 20 | `recommend_strategy` signature (OQ#5) | Amended: takes `(profile, options)`; options default to no-side-effect values (§3). |
+| 21 | `TableRef` vs discovery attributes (OQ#6) | **Split**: frozen `TableRef` identity for every table-scoped tool; `DiscoveredTable` = `TableRef` + attributes, returned only by `discover_tables` (§3). |
+| 22 | Orchestration placement (OQ#7) | Confirmed: `convert/__init__.py` holds `execute_conversion`/`rollback_table` and `COMMIT_ORDER`; `promote.py` stays promotion-only (two-reviewer file). Added to §13. |
+| 23 | Identifier charset (OQ#8) | Strict pattern retained; non-conforming UC identifiers are **S7 `UNSUPPORTED_IDENTIFIER`**, reported not dropped, counted by `assess-mcp`. Quoting support is v1.1 (§4). |
+| 24 | Aggregates in `get_conversion_record` (OQ#9) | Confirmed stripped; auditor reads the encrypted evidence object via `acc-migrate evidence show --include-aggregates` under a separate auditor IAM role. No MCP/agent/log path (§3, §10). |
+| 25 | `errors.py` (OQ#10) | Added to §13; spec-named codes keep their identity and never collapse into `INTERNAL`. |
+| 26 | Untrusted source text (OQ#13) | `sanitize_source_text()`: control/zero-width strip, NFC, 1,024-char cap, `<x-untrusted>` marking; rationale strings are template+enum only, source text carried separately (§10). |
+| 27 | Mechanical no-write gate (OQ#14) | semgrep ruleset + import-linter contracts in CI, with tests proving each fires (§10). |
+| 28 | Delta `INTERVAL` (OQ#2) | Closed: no fixture uses it; remains S7 with reason `unsupported_type`; `assess-mcp` counts occurrences per estate so a client exception surfaces at assessment, not at conversion. |
 | 19 | Wording | "data path" DBU claim; Redshift native read preferred with Spectrum fallback; deny may be implicit or explicit; deterministic 20-column selection; ADRs under `docs/adr/`. |

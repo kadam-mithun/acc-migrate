@@ -113,10 +113,10 @@ def test_validation_failure_does_not_escape_the_tool() -> None:
 def test_domain_refusal_keeps_its_code(monkeypatch: pytest.MonkeyPatch) -> None:
     """`APPROVAL_REQUIRED` and friends must reach the caller intact (AT-13)."""
     from table_mcp import promote
-    from table_mcp.schemas import TableMcpError
+    from table_mcp.errors import ApprovalRequiredError
 
     def _refuse(_: object) -> object:
-        raise TableMcpError(ErrorCode.APPROVAL_REQUIRED, "approval_id is required", table=TABLE.fqn)
+        raise ApprovalRequiredError("approval_id is required", table=TABLE.fqn)
 
     monkeypatch.setattr(promote, "promote_table", _refuse)
     result = server.promote_table(run_id=RUN_ID, table_ref=TABLE)

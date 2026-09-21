@@ -19,6 +19,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import ValidationError
 
 from table_mcp import convert, discover, ledger, profile, promote, strategy, validate
+from table_mcp.errors import TableMcpError
 from table_mcp.redact import (
     configure_logging,
     domain_error_envelope,
@@ -45,7 +46,6 @@ from table_mcp.schemas import (
     RecommendStrategyOutput,
     RollbackTableInput,
     RollbackTableOutput,
-    TableMcpError,
     TableProfile,
     TableRef,
     ToolInput,

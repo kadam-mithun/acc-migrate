@@ -4,6 +4,15 @@
 order is fixed at S6 → S7 → S5 → S4 → S3 → S2 → S1; first match wins and the
 rationale lists every rule evaluated. Never reorder (server CLAUDE.md).
 
+`recommend_strategy(profile, options)` per SPEC §3 and §14 row 20: `options`
+carries the decision-affecting settings and defaults to the no-side-effect
+values (no history, no re-layout, no bridge).
+
+**Rationale strings are template + enum only** (SPEC §10). No UC-authored text is
+ever interpolated into a `RuleEvaluation.reason` or a `manual_detail`: those
+reach an agent context, and source text is attacker-influencable. It travels in
+`StrategyDecision.source_metadata` instead, sanitised at the model boundary.
+
 Coverage gate: ≥ 90% on this module. Every rule has `test_strategy_rule_<id>`,
 every trigger condition its own test, every order boundary its own test.
 """

@@ -1,0 +1,50 @@
+; Mechanical no-write gate — module boundaries (SPEC §10, §14 row 27).
+;
+; Call-site enforcement is semgrep's job (policies/nowrite.semgrep.yml); this
+; file stops a forbidden capability being imported at all.
+;
+; Run:  lint-imports --config policies/.importlinter
+
+[importlinter]
+root_package = table_mcp
+include_external_packages = True
+
+[importlinter:contract:databricks-sql-confined]
+name = Databricks SQL client is confined to discover.py and profile.py
+type = forbidden
+source_modules =
+    table_mcp
+forbidden_modules =
+    databricks
+ignore_imports =
+    table_mcp.discover -> databricks
+    table_mcp.profile -> databricks
+; The two exemptions do not match yet: the Databricks SQL client is not a
+; dependency until discovery is implemented. `warn` keeps the contract green
+; until then; the contract itself is already live for every other module.
+unmatched_ignore_imports_alerting = warn
+
+[importlinter:contract:no-delta-writer-in-conversion]
+; SPEC §10 says these modules may not import deltalake *write* APIs.
+; import-linter cannot forbid a submodule of an external package, so the
+; contract is the stricter whole-package ban. That is also the better boundary:
+; Delta log access belongs in profile.py and the Spark jobs, so convert/ works
+; from the TableProfile and PyIceberg. Call-site granularity (write_deltalake,
+; DeltaTable.merge/update/delete) is semgrep's job.
+name = convert/, promote.py and glue.py may not import deltalake
+type = forbidden
+source_modules =
+    table_mcp.convert
+    table_mcp.promote
+    table_mcp.glue
+forbidden_modules =
+    deltalake
+
+[importlinter:contract:promote-stays-promotion-only]
+name = promote.py does not reach into conversion mechanics (two-reviewer file)
+type = forbidden
+source_modules =
+    table_mcp.promote
+forbidden_modules =
+    table_mcp.convert
+    table_mcp.discover

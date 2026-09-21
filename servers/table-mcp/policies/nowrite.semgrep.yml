@@ -1,0 +1,88 @@
+# Mechanical no-write gate — call sites (SPEC §10, §14 row 27).
+#
+# Root CLAUDE.md rule 2 says no code path may write to Databricks, Unity Catalog
+# or a source S3 prefix. This ruleset makes that mechanical rather than
+# review-only. Module-boundary enforcement is import-linter's job and lives in
+# policies/.importlinter; this file covers call sites.
+#
+# Run:  semgrep --config policies/nowrite.semgrep.yml --error src spark_jobs
+rules:
+  - id: no-write-deltalake
+    languages: [python]
+    severity: ERROR
+    message: >-
+      write_deltalake() writes to a Delta table. This service is read-only
+      against Databricks, Unity Catalog and source S3 prefixes (root rule 2).
+    patterns:
+      - pattern-either:
+          - pattern: write_deltalake(...)
+          - pattern: deltalake.write_deltalake(...)
+
+  - id: no-delta-table-mutation
+    languages: [python]
+    severity: ERROR
+    message: >-
+      DeltaTable mutation (merge/update/delete/vacuum/restore/create) writes to
+      the source table. This service is read-only against source (root rule 2).
+    patterns:
+      - pattern-either:
+          - pattern: $T.merge(...)
+          - pattern: $T.update(...)
+          - pattern: $T.delete(...)
+          - pattern: $T.vacuum(...)
+          - pattern: $T.restore(...)
+          - pattern: $T.create(...)
+      - metavariable-regex:
+          metavariable: $T
+          regex: (?i).*(delta_table|deltatable|dt|source_table)$
+
+  - id: no-spark-write-to-source
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Spark write whose target resolves to a source location. Conversion output
+      goes only to the attempt-scoped staging prefix (SPEC §9, root rule 2).
+    patterns:
+      - pattern-either:
+          - pattern: $DF.write.$FORMAT(...).save($TARGET)
+          - pattern: $DF.write.save($TARGET)
+          - pattern: $DF.writeTo($TARGET)
+          - pattern: $DF.write.insertInto($TARGET)
+          - pattern: $DF.write.saveAsTable($TARGET)
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: (?i).*(source|src_|_src|profile\.table_ref|table_ref\.location|\.location).*
+
+  - id: no-databricks-sql-outside-discovery
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Databricks SQL execution is confined to discover.py and profile.py
+      (SPEC §10). Everywhere else reads the Delta log directly from S3.
+    paths:
+      exclude:
+        - "**/discover.py"
+        - "**/profile.py"
+    patterns:
+      - pattern-either:
+          - pattern: $CUR.execute(...)
+          - pattern: databricks.sql.connect(...)
+          - pattern: $W.statement_execution.execute_statement(...)
+      - metavariable-regex:
+          metavariable: $CUR
+          regex: (?i).*(cursor|databricks|warehouse|sql_conn|connection)$
+
+  - id: no-write-mode-on-source-path
+    languages: [python]
+    severity: ERROR
+    message: >-
+      An S3 write whose key is built from a source location. Writes go only to
+      staging or production prefixes derived by storage.py (root rule 2).
+    patterns:
+      - pattern-either:
+          - pattern: $C.put_object(..., Bucket=..., Key=$K, ...)
+          - pattern: $C.delete_object(..., Key=$K, ...)
+          - pattern: $C.delete_objects(...)
+      - metavariable-regex:
+          metavariable: $K
+          regex: (?i).*(source|src_|_src).*

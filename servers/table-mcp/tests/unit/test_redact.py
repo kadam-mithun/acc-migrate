@@ -64,11 +64,12 @@ def test_safe_table_tag_drops_a_malformed_tag_instead_of_raising() -> None:
 
 
 def test_domain_error_envelope_keeps_the_spec_named_code() -> None:
+    from table_mcp.errors import ApprovalRequiredError, TableMcpError
     from table_mcp.redact import domain_error_envelope
-    from table_mcp.schemas import TableMcpError
 
-    envelope = domain_error_envelope(
-        TableMcpError(ErrorCode.APPROVAL_REQUIRED, "approval_id is required")
-    )
+    envelope = domain_error_envelope(ApprovalRequiredError("approval_id is required"))
     assert envelope.code is ErrorCode.APPROVAL_REQUIRED
     assert envelope.message == "approval_id is required"
+
+    generic = domain_error_envelope(TableMcpError("boom", code=ErrorCode.LOCKED))
+    assert generic.code is ErrorCode.LOCKED

@@ -213,12 +213,25 @@ def test_iceberg_transform_is_an_allow_list() -> None:
 
 
 def test_domain_error_carries_its_spec_named_code() -> None:
-    """SPEC §3 refusals must not collapse into INTERNAL."""
-    exc = s.TableMcpError(
-        s.ErrorCode.APPROVAL_REQUIRED, "no approval record", table="meridian_fin.gl.trades_plain"
-    )
+    """SPEC §3/§14 row 25: refusals must not collapse into INTERNAL.
+
+    `TableMcpError` moved to `errors.py` when §13 gained that module.
+    """
+    from table_mcp import errors
+
+    exc = errors.ApprovalRequiredError("no approval record", table="meridian_fin.gl.trades_plain")
     assert exc.code is s.ErrorCode.APPROVAL_REQUIRED
     assert exc.retryable is False
+    assert not hasattr(s, "TableMcpError"), "TableMcpError belongs in errors.py now"
+
+    for exc_type, code in (
+        (errors.ApprovalInvalidError, s.ErrorCode.APPROVAL_INVALID),
+        (errors.AlreadyPromotedError, s.ErrorCode.ALREADY_PROMOTED),
+        (errors.LockedError, s.ErrorCode.LOCKED),
+        (errors.KmsKeyRequiredError, s.ErrorCode.KMS_KEY_REQUIRED),
+        (errors.WriteGrantPresentError, s.ErrorCode.WRITE_GRANT_PRESENT),
+    ):
+        assert exc_type("x").code is code
 
 
 def test_conversion_record_minimal_round_trip() -> None:
@@ -241,7 +254,57 @@ def test_strategy_s7_is_recorded_as_manual_decision() -> None:
     decision = s.StrategyDecision(
         strategy=s.Strategy.MANUAL,
         rule_id=s.StrategyRuleId.S7,
-        manual_reason="VARIANT column has no Iceberg v1 equivalent",
+        manual_reason=s.ManualReason.UNSUPPORTED_TYPE,
+        manual_detail="VARIANT has no Iceberg v1 equivalent",
     )
     assert decision.strategy is s.Strategy.MANUAL
     assert "S7" not in {strategy.value for strategy in s.Strategy}
+
+
+def test_manual_reason_values_match_the_spec_spellings() -> None:
+    """SPEC §5 and §14 rows 23/28 name these strings; assess-mcp keys off them."""
+    assert s.ManualReason.UNSUPPORTED_IDENTIFIER.value == "UNSUPPORTED_IDENTIFIER"
+    assert s.ManualReason.UNSUPPORTED_TYPE.value == "unsupported_type"
+    assert s.ManualReason.VOID_COLUMN.value == "void_column"
+
+
+def test_table_ref_is_frozen_identity_only() -> None:
+    """SPEC §14 row 21: frozen, identity-only, hashable."""
+    assert set(s.TableRef.model_fields) == {"catalog", "schema_name", "name"}
+    ref = _table_ref()
+    assert isinstance(hash(ref), int)
+    with pytest.raises(ValidationError):
+        ref.name = "other"
+
+
+def test_discovered_table_carries_the_attributes_instead() -> None:
+    """Only `discover_tables` returns attributes, so no tool sees a half ref."""
+    discovered = s.DiscoveredTable(table_ref=_table_ref(), size_bytes=1024, managed=True)
+    assert discovered.table_ref.fqn == "meridian_fin.gl.trades_plain"
+    assert "location" not in s.TableRef.model_fields
+    assert s.DiscoverTablesOutput.model_fields["tables"].annotation == list[s.DiscoveredTable]
+
+
+def test_unsupported_identifier_is_reported_not_dropped() -> None:
+    """SPEC §14 row 23: S7 UNSUPPORTED_IDENTIFIER, counted by assess-mcp."""
+    assert s.is_supported_identifier("trades_plain")
+    assert not s.is_supported_identifier("meridian fin")
+    assert not s.is_supported_identifier("gl.trades")
+
+    unsupported = s.UnsupportedTable(catalog="meridian fin", schema_name="gl", name="t")
+    assert unsupported.reason is s.ManualReason.UNSUPPORTED_IDENTIFIER
+    assert "unsupported" in s.DiscoverTablesOutput.model_fields
+
+
+def test_untrusted_source_text_is_sanitized_at_the_model_boundary() -> None:
+    """SPEC §10: UC text cannot enter a model raw."""
+    profile_column = s.ColumnProfile(
+        name="notional",
+        delta_type="DECIMAL(18,2)",
+        comment="drop\u200b all\x07 tables",
+    )
+    assert profile_column.comment == "drop all tables"
+
+    metadata = s.SourceMetadata(table_comment="x" * 2000)
+    assert metadata.table_comment is not None
+    assert len(metadata.table_comment) == 1024

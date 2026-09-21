@@ -15,6 +15,7 @@ present but mismatched in any field → `APPROVAL_INVALID`.
 
 from __future__ import annotations
 
+from table_mcp.errors import ApprovalInvalidError, ApprovalRequiredError
 from table_mcp.schemas import ApprovalRecord, PromoteTableInput, PromoteTableOutput
 
 
@@ -25,8 +26,14 @@ def validate_approval(
     plan_id: str,
     staged_snapshot_id: int | None,
 ) -> None:
-    """Enforce the SPEC §9.1 gate. Raises with `APPROVAL_REQUIRED` when the record
-    is missing or unknown, `APPROVAL_INVALID` on any field mismatch."""
+    """Enforce the SPEC §9.1 gate.
+
+    Raises :class:`~table_mcp.errors.ApprovalRequiredError` when the record is
+    missing or unknown (AT-13), and
+    :class:`~table_mcp.errors.ApprovalInvalidError` on any field mismatch. Both
+    keep their code through `server._dispatch` (SPEC §14 row 25).
+    """
+    _ = (ApprovalRequiredError, ApprovalInvalidError)  # the refusals this gate raises
     raise NotImplementedError("SPEC §9.1 promotion gate")
 
 

@@ -477,6 +477,19 @@
       "title": "ErrorEnvelope",
       "type": "object"
     },
+    "ManualReason": {
+      "description": "Why a table routed to rule S7 (`strategy = MANUAL`).\n\nValues are the exact spellings SPEC \u00a75 and \u00a714 use; the casing is\ninconsistent in the spec itself and is reproduced rather than normalised so\nthe strings match what `assess-mcp` and the client report expect.",
+      "enum": [
+        "UNSUPPORTED_IDENTIFIER",
+        "unsupported_type",
+        "void_column",
+        "row_tracking_dependency",
+        "type_widening_not_representable",
+        "corrupted_log"
+      ],
+      "title": "ManualReason",
+      "type": "string"
+    },
     "PartitionColumn": {
       "additionalProperties": false,
       "description": "A Delta partition column and the Iceberg transform it maps to.",
@@ -606,6 +619,54 @@
       "title": "SnapshotMapping",
       "type": "object"
     },
+    "SourceMetadata": {
+      "additionalProperties": false,
+      "description": "UC-authored text, carried apart from anything a model is told to obey.\n\nSPEC \u00a710: rationale strings are template + enum only and never interpolate\nsource text; it travels here instead, already sanitised by the model\nboundary, and is marked with `sanitize.mark_untrusted` wherever it can reach\na model context.",
+      "properties": {
+        "table_comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table Comment"
+        },
+        "column_comments": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Column Comments",
+          "type": "object"
+        },
+        "uc_tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Uc Tags",
+          "type": "object"
+        },
+        "constraints": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Constraints",
+          "type": "object"
+        },
+        "generated_expressions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Generated Expressions",
+          "type": "object"
+        }
+      },
+      "title": "SourceMetadata",
+      "type": "object"
+    },
     "Strategy": {
       "description": "Conversion strategies of SPEC \u00a75.\n\nS7 (\"unsupported \u2014 manual\") is a *rule* id whose decision is ``MANUAL``; the\nspec states `StrategyDecision.strategy = MANUAL` for that row, so the rule id\nis carried separately in :attr:`StrategyDecision.rule_id`.",
       "enum": [
@@ -687,6 +748,18 @@
         "manual_reason": {
           "anyOf": [
             {
+              "$ref": "#/$defs/ManualReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required when strategy is MANUAL (rule S7)"
+        },
+        "manual_detail": {
+          "anyOf": [
+            {
               "type": "string"
             },
             {
@@ -694,8 +767,12 @@
             }
           ],
           "default": null,
-          "description": "Required when strategy is MANUAL (rule S7)",
-          "title": "Manual Reason"
+          "description": "Template + enum text only; never source text (SPEC \u00a710)",
+          "title": "Manual Detail"
+        },
+        "source_metadata": {
+          "$ref": "#/$defs/SourceMetadata",
+          "description": "UC-authored text, sanitised and kept out of the rationale (SPEC \u00a710)"
         }
       },
       "required": [
@@ -740,7 +817,7 @@
     },
     "TableRef": {
       "additionalProperties": false,
-      "description": "A Delta table in Unity Catalog.\n\nThe three identity fields are always present. The remaining fields are the\ndiscovery attributes of SPEC \u00a73 `discover_tables`; they are `None` when the\nref is passed to another tool purely as an identifier.",
+      "description": "The identity of a Delta table in Unity Catalog \u2014 nothing else.\n\nFrozen and identity-only per SPEC \u00a73 and \u00a714 row 21. Every table-scoped tool\ntakes this type; only `discover_tables` returns :class:`DiscoveredTable`, so\nno tool can be handed a half-populated ref whose discovery attributes are\nsilently `None`.\n\nBeing frozen also makes it hashable, so a ref is usable as a dict key in the\nplan and the manifest without a defensive copy.",
       "properties": {
         "catalog": {
           "pattern": "^[A-Za-z0-9_-]{1,255}$",
@@ -756,90 +833,6 @@
           "pattern": "^[A-Za-z0-9_-]{1,255}$",
           "title": "Name",
           "type": "string"
-        },
-        "location": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Source S3 URI of the Delta table",
-          "title": "Location"
-        },
-        "table_format": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Source format, e.g. \"DELTA\"",
-          "title": "Table Format"
-        },
-        "format_details": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Format Details",
-          "type": "object"
-        },
-        "size_bytes": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Size Bytes"
-        },
-        "last_modified": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Last Modified"
-        },
-        "managed": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "True = UC managed, False = external",
-          "title": "Managed"
-        },
-        "dlt_managed": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Dlt Managed"
         }
       },
       "required": [
@@ -1343,6 +1336,9 @@
       },
       "title": "Uc Tags",
       "type": "object"
+    },
+    "source_metadata": {
+      "$ref": "#/$defs/SourceMetadata"
     },
     "kms_key_arn": {
       "anyOf": [

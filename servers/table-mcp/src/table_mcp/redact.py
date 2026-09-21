@@ -30,7 +30,8 @@ import structlog
 from pydantic import ValidationError
 from structlog.typing import EventDict, FilteringBoundLogger, WrappedLogger
 
-from table_mcp.schemas import TABLE_FQN_PATTERN, ErrorCode, ErrorEnvelope, TableMcpError
+from table_mcp.errors import TableMcpError
+from table_mcp.schemas import TABLE_FQN_PATTERN, ErrorCode, ErrorEnvelope
 
 __all__ = [
     "LOGGABLE_KEYS",
