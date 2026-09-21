@@ -8,6 +8,8 @@ exception escaping the tool (SPEC §3, §10).
 
 These assertions flip as each domain module is implemented — a tool that starts
 returning its typed output will fail its row here, which is the intended signal.
+`recommend_strategy` has already made that transition and is asserted separately
+below.
 """
 
 from __future__ import annotations
@@ -48,11 +50,6 @@ TOOL_CALLS: list[tuple[str, Callable[[], object], bool]] = [
     ),
     ("profile_table", lambda: server.profile_table(run_id=RUN_ID, table_ref=TABLE), True),
     (
-        "recommend_strategy",
-        lambda: server.recommend_strategy(run_id=RUN_ID, profile=PROFILE),
-        False,
-    ),
-    (
         "plan_conversion",
         lambda: server.plan_conversion(run_id=RUN_ID, table_refs=[TABLE], target=TARGET),
         False,
@@ -86,6 +83,18 @@ def test_tool_wraps_stub_domain_call_in_an_error_envelope(
     assert result.code is ErrorCode.INTERNAL
     assert "NotImplementedError" in result.message
     assert result.table == (TABLE.fqn if table_scoped else None)
+
+
+def test_recommend_strategy_returns_its_typed_output() -> None:
+    """SPEC §5 is implemented, so this tool no longer comes back as a stub."""
+    from table_mcp.schemas import RecommendStrategyOutput
+
+    result = server.recommend_strategy(run_id=RUN_ID, profile=PROFILE)
+
+    assert isinstance(result, RecommendStrategyOutput)
+    assert result.run_id == RUN_ID
+    assert result.table_ref == TABLE
+    assert result.decision.strategy.value == "S1"
 
 
 def test_dispatch_tags_the_span_with_run_id_and_table() -> None:

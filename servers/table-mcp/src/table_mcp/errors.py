@@ -15,7 +15,7 @@ as-is; a wrapped third-party exception goes through `redact.py` instead.
 
 from __future__ import annotations
 
-from table_mcp.schemas import ErrorCode
+from table_mcp.schemas import ErrorCode, ManualReason
 
 __all__ = [
     "AlreadyPromotedError",
@@ -24,6 +24,7 @@ __all__ = [
     "KmsKeyRequiredError",
     "LockedError",
     "TableMcpError",
+    "UnmappableDeltaTypeError",
     "WriteGrantPresentError",
 ]
 
@@ -85,3 +86,24 @@ class WriteGrantPresentError(TableMcpError):
     """The service principal holds a write grant on source (SPEC §10, AT-14)."""
 
     code = ErrorCode.WRITE_GRANT_PRESENT
+
+
+class UnmappableDeltaTypeError(TableMcpError):
+    """A Delta type with no Iceberg equivalent in v1 (SPEC §5, rule S7).
+
+    Carries the `ManualReason` the strategy engine puts on the decision, so the
+    S7 path reports `unsupported_type` or `void_column` precisely rather than a
+    generic failure.
+    """
+
+    code = ErrorCode.UNSUPPORTED_TABLE
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        manual_reason: ManualReason = ManualReason.UNSUPPORTED_TYPE,
+        table: str | None = None,
+    ) -> None:
+        super().__init__(message, table=table)
+        self.manual_reason = manual_reason
